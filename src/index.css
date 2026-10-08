@@ -1,0 +1,21 @@
+:root {
+  color-scheme: dark;
+  --bg: #0d0d0f;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
+.scene {
+  position: fixed;
+  inset: 0;
+}
+
+/* Sets the scrollable height that drives the camera. svh keeps it steady while mobile address bars show and hide. */
+.scroll-spacer {
+  height: calc(var(--pages) * 100vh);
+  height: calc(var(--pages) * 100svh);
+}
