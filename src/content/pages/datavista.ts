@@ -118,8 +118,8 @@ export const content: ProjectContent = {
     },
     {
       id: 'datavista-adrs',
-      // The live contents list and heading differ: "Architectural" at :14, "Architecture … (ADRs)" at :193.
-      contentsLabel: '6. Architectural Decision Records',
+      // Contents label matches the heading (:193), not the live contents list (:14, "Architectural Decision Records").
+      contentsLabel: '6. Architecture Decision Records (ADRs)',
       heading: '6. Architecture Decision Records (ADRs)',
       blocks: [
         // :199, :203, :206-208 (id shown live as "[ADR-001]")

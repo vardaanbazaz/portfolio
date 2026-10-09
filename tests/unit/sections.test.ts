@@ -3,6 +3,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { content as datavista } from '../../src/content/pages/datavista';
 import { content as experience } from '../../src/content/pages/experience';
+import { content as neuroinsight } from '../../src/content/pages/neuroinsight-ai';
 import { content as publications } from '../../src/content/pages/publications';
 import {
   ITEM_LABELS,
@@ -16,6 +17,7 @@ import {
 } from '../../src/content/scene';
 import { ITEM_PAGE, itemHeadingId, opensPanel, PAGE_IDS, PAGE_ITEMS, PANEL_ITEMS } from '../../src/pages/contract';
 import DataVistaPage from '../../src/pages/DataVistaPage';
+import NeuroInsightPage from '../../src/pages/NeuroInsightPage';
 import PublicationsPage from '../../src/pages/PublicationsPage';
 import { citationFor } from '../../src/panels/citationItem';
 import { roleFor } from '../../src/panels/roleItem';
@@ -148,22 +150,57 @@ describe('Publications page', () => {
   });
 });
 
-describe('DataVista page', () => {
-  const html = renderToStaticMarkup(createElement(DataVistaPage, { headingId: 'title' }));
+const projectPages = [
+  { name: 'DataVista', page: 'datavista', Page: DataVistaPage, content: datavista },
+  { name: 'NeuroInsight-AI', page: 'neuroinsight-ai', Page: NeuroInsightPage, content: neuroinsight },
+] as const;
 
-  it('links each contents entry to a section heading on the page', () => {
-    for (const section of datavista.sections) {
-      expect(html).toContain(`href="#${section.id}"`);
-      expect(html).toContain(`<h2 id="${section.id}" tabindex="-1">`);
-    }
+for (const { name, page, Page, content } of projectPages) {
+  describe(`${name} page`, () => {
+    const html = renderToStaticMarkup(createElement(Page, { headingId: 'title' }));
+
+    it('links each contents entry to a section heading on the page', () => {
+      for (const section of content.sections) {
+        expect(html).toContain(`href="#${section.id}"`);
+        expect(html).toContain(`<h2 id="${section.id}" tabindex="-1">`);
+      }
+    });
+
+    it('labels each contents entry as its heading', () => {
+      for (const section of content.sections) expect(section.contentsLabel).toBe(section.heading);
+    });
+
+    it('shows its status as plain text from the scene content', () => {
+      expect(html).toContain(`Status: ${PROJECT_STATUS[page]}`);
+    });
+
+    it('shows no dossier code, category label or decision badge', () => {
+      for (const text of ['DOSSIER', 'CATEGORY', 'Feature Build', 'ACCEPTED']) expect(html).not.toContain(text);
+    });
+  });
+}
+
+it('gives every project section heading an id no other project uses', () => {
+  const ids = projectPages.flatMap(({ content }) => content.sections.map((s) => s.id));
+  expect(new Set(ids).size).toBe(ids.length);
+});
+
+describe('NeuroInsight-AI credits', () => {
+  const text = JSON.stringify(neuroinsight);
+
+  it('credits the starting repo and the fPI paper', () => {
+    expect(text).toContain('github.com/bhanmrinal/fPI-Parkison-Analyser-using-Acoustic-Sound-Features');
+    expect(text).toContain(
+      "“fPI: A Novel Index for Predictive Analysis of Parkinson's Disease Using Acoustic Sound Feature” by Gautam Gupta, Mrinal Bhan and Sahil Nimsarkar",
+    );
   });
 
-  it('shows its status as plain text from the scene content', () => {
-    expect(html).toContain(`Status: ${PROJECT_STATUS.datavista}`);
-  });
-
-  it('shows no dossier code, category label or decision badge', () => {
-    for (const text of ['DOSSIER', 'CATEGORY', 'Feature Build', 'ACCEPTED']) expect(html).not.toContain(text);
+  it('uses the decided subtitle and shows the accuracy with its baseline', () => {
+    expect(neuroinsight.subtitle).toBe('Voice-classification research');
+    expect(neuroinsight.figures).toEqual([
+      { label: 'Accuracy:', value: '0.796 ± 0.098' },
+      { label: 'Baseline:', value: '0.756 ± 0.067' },
+    ]);
   });
 });
 

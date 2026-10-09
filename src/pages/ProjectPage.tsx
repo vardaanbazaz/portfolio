@@ -1,6 +1,6 @@
-import type { MouseEvent } from 'react';
+import { Fragment, type MouseEvent } from 'react';
 import { PAGE_LABELS, PROJECT_STATUS, type ProjectPageId } from '../content/scene';
-import type { ProjectBlock, ProjectContent, ProjectSection } from '../content/types';
+import type { Figure, ProjectBlock, ProjectContent, ProjectSection } from '../content/types';
 import { UI } from '../ui/strings';
 import { LinkList } from './LinkList';
 import type { PageProps } from './contract';
@@ -67,7 +67,32 @@ function Block({ block }: { block: ProjectBlock }) {
       );
     case 'link':
       return <LinkList links={[block.link]} />;
+    case 'formula':
+      return (
+        <>
+          <p className="muted">{block.name}</p>
+          <p>
+            <code>{block.formula}</code>
+          </p>
+          <p className="muted">{block.note}</p>
+        </>
+      );
+    case 'figures':
+      return <Figures items={block.items} />;
   }
+}
+
+function Figures({ items }: { items: readonly Figure[] }) {
+  return (
+    <dl>
+      {items.map((item) => (
+        <Fragment key={item.label}>
+          <dt>{item.label}</dt>
+          <dd>{item.value}</dd>
+        </Fragment>
+      ))}
+    </dl>
+  );
 }
 
 /** A project's full page: header, contents list, then its sections in order. */
@@ -81,6 +106,7 @@ export function ProjectPage({ headingId, page, content }: ProjectPageProps) {
       <p className="muted">
         {UI.status} {PROJECT_STATUS[page]}
       </p>
+      {content.figures && <Figures items={content.figures} />}
       <p>{content.summary}</p>
       <LinkList links={[content.source]} />
       <ul className="pills">

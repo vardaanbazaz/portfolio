@@ -103,12 +103,21 @@ export interface Adr {
   consequences: string;
 }
 
+/** A measured value and what it measures, as in "Accuracy: 0.796 ± 0.098". */
+export interface Figure {
+  label: string;
+  value: string;
+}
+
 /** One piece of a project page section, shown in order. */
 export type ProjectBlock =
   | { kind: 'paragraph'; text: string }
   | { kind: 'terms'; items: readonly TermItem[] }
   | { kind: 'adr'; adr: Adr }
-  | { kind: 'link'; link: ExternalLink };
+  | { kind: 'link'; link: ExternalLink }
+  /** A formula, its name, and a note on what it scores. */
+  | { kind: 'formula'; name: string; formula: string; note: string }
+  | { kind: 'figures'; items: readonly Figure[] };
 
 /** A section of a project page, with its entry in the page's contents list. */
 export interface ProjectSection {
@@ -126,6 +135,8 @@ export interface ProjectContent {
   summary: string;
   source: ExternalLink;
   pills: readonly string[];
+  /** Headline figures, shown under the status. */
+  figures?: readonly Figure[];
   sections: readonly ProjectSection[];
 }
 
