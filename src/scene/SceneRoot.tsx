@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
-import { LANDING, SECTION_LINES, SECTION_TITLES } from '../content/scene';
+import { LANDING, SECTION_LINES, SECTION_NOTES, SECTION_TITLES } from '../content/scene';
 import { environment } from '../environment/registry';
 import { SECTION_IDS } from '../sections/contract';
 import { MARKERS, markerAt, type PlacedMarker } from '../sections/layouts';
@@ -13,6 +13,8 @@ import { createFrameState } from './frameState';
 import { Marker } from './Marker';
 import { MarkerTracker } from './MarkerTracker';
 import { OverlayTracker } from './OverlayTracker';
+import { usePanelStacked } from './panelLayout';
+import { PanelLeaderTracker } from './PanelLeaderTracker';
 import { registerCaption, registerLanding } from './overlayRegistry';
 import { SectionAnchor, type SectionHandlers } from './SectionAnchor';
 import { BASE_FOV, DPR_LOW, DPR_RANGE, NARROW_VIEWPORT_PX, PERF_DECLINE_BELOW_FPS } from './tuning';
@@ -20,14 +22,15 @@ import { BASE_FOV, DPR_LOW, DPR_RANGE, NARROW_VIEWPORT_PX, PERF_DECLINE_BELOW_FP
 const initialQuality = (): Quality => (window.innerWidth < NARROW_VIEWPORT_PX ? 'low' : 'high');
 
 /** The one persistent canvas: environment, sections and the camera rig, with the landing text,
- *  section captions and marker buttons over it. It never unmounts while pages come and go. */
+ *  section captions and marker buttons over it. It never unmounts while pages and panels come and go. */
 interface SceneRootProps extends SectionHandlers {
   /** An opaque page fully covers the scene. */
   hidden: boolean;
 }
 
 export function SceneRoot({ onOpen, hidden }: SceneRootProps) {
-  const { phase, page, item } = useAppState();
+  const { phase, page, item, panel } = useAppState();
+  const stacked = usePanelStacked();
   const [startQuality] = useState(initialQuality);
   const [quality, setQuality] = useState<Quality>(startQuality);
   const [dpr, setDpr] = useState<number | [number, number]>(DPR_RANGE);
@@ -36,6 +39,7 @@ export function SceneRoot({ onOpen, hidden }: SceneRootProps) {
   const { World } = environment;
   const target = useMemo(() => (page ? { page, item: item ?? undefined } : null), [page, item]);
   const activeMarker = target ? markerAt(target) : undefined;
+  const framing = panel ? (stacked ? 'stacked' : 'side') : 'whole';
 
   // Drop to low quality on a sustained frame-rate decline and never climb back this session.
   const onDecline = () => {
@@ -47,20 +51,29 @@ export function SceneRoot({ onOpen, hidden }: SceneRootProps) {
   const onFlyOutDone = useCallback(() => appStore.dispatch({ type: 'flyOutDone' }), []);
 
   return (
-    // Inert unless exploring: markers can't be focused or clicked during a flight or under a page.
+    // Inert unless exploring: markers can't be focused or clicked during a flight or under a page or panel.
     // Hidden with visibility, not display, so the canvas keeps its size and nothing reflows on return.
-    <div className={hidden ? 'scene scene-hidden' : 'scene'} inert={phase !== 'exploring'}>
+    // While a panel is up, the scene's text and marker buttons are hidden so they don't show through it.
+    <div className={['scene', hidden && 'scene-hidden', panel && 'scene-panel'].filter(Boolean).join(' ')} inert={phase !== 'exploring'}>
       <Canvas
         dpr={dpr}
-        // The opaque page covers the scene, so stop drawing while it is open.
-        frameloop={phase === 'pageOpen' ? 'demand' : 'always'}
+        // The opaque page covers the scene, so stop drawing while it is open. A panel keeps the scene drawing.
+        frameloop={phase === 'open' && !panel ? 'demand' : 'always'}
         gl={{ antialias: startQuality === 'high' }}
         camera={{ fov: BASE_FOV, near: 0.1, far: 200, position: pathPos(0).toArray() }}
         onCreated={({ gl }) => gl.domElement.setAttribute('aria-hidden', 'true')}
       >
         <PerformanceMonitor bounds={() => [PERF_DECLINE_BELOW_FPS, Infinity]} onDecline={onDecline} />
-        <CameraRig frame={frame} phase={phase} target={target} onFlyInDone={onFlyInDone} onFlyOutDone={onFlyOutDone} />
+        <CameraRig
+          frame={frame}
+          phase={phase}
+          target={target}
+          framing={framing}
+          onFlyInDone={onFlyInDone}
+          onFlyOutDone={onFlyOutDone}
+        />
         <MarkerTracker frame={frame} />
+        <PanelLeaderTracker target={panel ? activeMarker : undefined} stacked={stacked} />
         <OverlayTracker frame={frame} />
         <World pathT={frame.pathT} quality={quality} />
         <ambientLight intensity={0.6} />
@@ -90,6 +103,7 @@ export function SceneRoot({ onOpen, hidden }: SceneRootProps) {
         <div key={id} className="caption" ref={(el) => registerCaption(id, el)}>
           <h2 className="caption-title">{SECTION_TITLES[id]}</h2>
           <p className="caption-line">{SECTION_LINES[id]}</p>
+          {SECTION_NOTES[id] && <p className="caption-line">{SECTION_NOTES[id]}</p>}
         </div>
       ))}
       {MARKERS.map((placed) => (

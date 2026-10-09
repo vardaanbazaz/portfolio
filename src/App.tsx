@@ -2,10 +2,21 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, type C
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { AnimatePresence } from 'motion/react';
 import { PAGE_LABELS, SITE_NAME } from './content/scene';
-import { PAGE_IDS } from './pages/contract';
+import { opensPanel, PAGE_IDS } from './pages/contract';
 import { PageView } from './pages/PageView';
 import { pageLoaders } from './pages/registry';
-import { itemForState, itemState, PAGE_PATHS, pageForPath, sectionForHash, sectionHash } from './routes';
+import { PanelView } from './panels/PanelView';
+import { panelLoaders } from './panels/registry';
+import {
+  itemForState,
+  itemState,
+  PAGE_PATHS,
+  pageForPath,
+  panelForState,
+  panelState,
+  sectionForHash,
+  sectionHash,
+} from './routes';
 import { nearestSection, scrollProgress, SECTION_T } from './scene/cameraPath';
 import { focusMarker } from './scene/markerRegistry';
 import { isTravelling, stopTravel, travelTo } from './scene/menuTravel';
@@ -83,17 +94,23 @@ function useScrollLock(locked: boolean, bootT: number | null) {
 }
 
 function AppShell({ bootT }: { bootT: number | null }) {
-  const { phase, page, item, route, returnFocus, sceneHidden } = useAppState();
+  const { phase, page, item, panel, route, returnFocus, sceneHidden } = useAppState();
   const location = useLocation();
   const navigate = useNavigate();
   const closeRequested = useRef(false);
-  /** Destination chosen in the menu while a page was open or a flight was running; travelled to once exploring. */
+  /** Destination chosen in the menu while a page or panel was open or a flight was running; travelled to once exploring. */
   const pendingTravel = useRef<Destination | null>(null);
 
-  // The URL is the source of truth: every change (marker, close, menu, Back, Forward) goes through here.
+  // The URL and its history state are the source of truth: every change (marker, close, menu, Back, Forward)
+  // goes through here.
   useEffect(() => {
     const route = pageForPath(location.pathname);
-    appStore.dispatch({ type: 'route', route, item: itemForState(route, location.state) });
+    appStore.dispatch({
+      type: 'route',
+      route,
+      item: itemForState(route, location.state),
+      panel: panelForState(route, location.state),
+    });
   }, [location.pathname, location.state]);
 
   useEffect(() => {
@@ -121,13 +138,15 @@ function AppShell({ bootT }: { bootT: number | null }) {
     if (phase === 'flyingOut') return sound.play('out');
   }, [phase]);
 
-  // Start fetching the page's chunk as the fly-in starts, so it is usually ready when the fade begins.
+  // Start fetching the page's or panel's chunk as the fly-in starts, so it is usually ready when the fade begins.
   useEffect(() => {
-    if (phase === 'flyingIn' && page) void pageLoaders[page]();
-  }, [phase, page]);
+    if (phase !== 'flyingIn' || !page) return;
+    if (panel && opensPanel(item)) void panelLoaders[item]();
+    else void pageLoaders[page]();
+  }, [phase, page, item, panel]);
 
   useEffect(() => {
-    if (phase === 'pageOpen') closeRequested.current = false;
+    if (phase === 'open') closeRequested.current = false;
     if (phase !== 'exploring') return;
     const destination = pendingTravel.current;
     if (destination) {
@@ -139,25 +158,29 @@ function AppShell({ bootT }: { bootT: number | null }) {
     }
   }, [phase, returnFocus, travel]);
 
-  // A marker with an item opens its page at the page's own URL; the item rides in history state, so Forward reopens it.
-  const openPage = useCallback(
+  // A short item's marker opens its panel: a new history entry at the same URL (query and hash included), with the
+  // panel in its state, so Back closes it. Any other marker opens its page at the page's own URL; an item rides in
+  // history state, so Forward reopens it.
+  const openTarget = useCallback(
     ({ page: id, item }: MarkerTarget) => {
       if (appStore.get().phase !== 'exploring') return;
-      navigate(PAGE_PATHS[id], { state: itemState(item) });
+      const { search, hash } = window.location;
+      if (opensPanel(item)) navigate({ pathname: '/', search, hash }, { state: panelState(item) });
+      else navigate(PAGE_PATHS[id], { state: itemState(item) });
     },
     [navigate],
   );
 
-  // Opened in-app: go back to `/`. Direct load: there is nothing to go back to, so replace with `/`.
-  // Guarded so a repeated Escape can't step back past `/`.
-  const closePage = useCallback(() => {
-    if (closeRequested.current || appStore.get().phase !== 'pageOpen') return;
+  // Opened in-app: go back to the entry before it. With nothing to go back to (a direct load), replace the entry
+  // with `/` (for a panel, the same URL without the panel). Guarded so a repeated Escape can't step back further.
+  const close = useCallback(() => {
+    if (closeRequested.current || appStore.get().phase !== 'open') return;
     closeRequested.current = true;
-    if (location.key === 'default') navigate('/', { replace: true });
-    else navigate(-1);
-  }, [location.key, navigate]);
+    if (location.key !== 'default') navigate(-1);
+    else navigate(appStore.get().panel ? { pathname: '/', search: location.search, hash: location.hash } : '/', { replace: true });
+  }, [location.key, location.search, location.hash, navigate]);
 
-  // On the path: travel there, and the hash follows on arrival. If a page is open (or a flight is running),
+  // On the path: travel there, and the hash follows on arrival. If a page or panel is open (or a flight is running),
   // replace the entry with plain `/` (no history entry added), which closes it; the travel starts once back on the path.
   const goTo = useCallback(
     (to: Destination) => {
@@ -172,12 +195,12 @@ function AppShell({ bootT }: { bootT: number | null }) {
   );
   const goToTop = useCallback(() => goTo('top'), [goTo]);
 
-  const onPageShown = useCallback(() => appStore.dispatch({ type: 'pageShown' }), []);
-  const onPageGone = useCallback(() => appStore.dispatch({ type: 'pageHidden' }), []);
+  const onShown = useCallback(() => appStore.dispatch({ type: 'shown' }), []);
+  const onGone = useCallback(() => appStore.dispatch({ type: 'hidden' }), []);
 
   return (
     <>
-      <SceneRoot onOpen={openPage} hidden={sceneHidden} />
+      <SceneRoot onOpen={openTarget} hidden={sceneHidden} />
       <div className="scroll-spacer" style={{ '--pages': SCROLL_PAGES } as CSSProperties} />
       <Routes>
         <Route path="/" element={null} />
@@ -187,10 +210,14 @@ function AppShell({ bootT }: { bootT: number | null }) {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {/* initial={false}: a direct load shows its page at once, with no fade or fly-in. */}
-      <AnimatePresence initial={false} onExitComplete={onPageGone}>
-        {phase === 'pageOpen' && page && (
-          <PageView key={page} page={page} item={item} onBack={closePage} onShown={onPageShown} />
-        )}
+      <AnimatePresence initial={false} onExitComplete={onGone}>
+        {phase === 'open' &&
+          page &&
+          (panel && opensPanel(item) ? (
+            <PanelView key={`panel-${item}`} item={item} onClose={close} />
+          ) : (
+            <PageView key={page} page={page} item={item} onBack={close} onShown={onShown} />
+          ))}
       </AnimatePresence>
       <SectionMenu onSelect={goTo} onTop={goToTop} />
       <MuteToggle />

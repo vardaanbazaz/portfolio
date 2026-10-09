@@ -1,4 +1,4 @@
-import { ITEM_PAGE, type ItemId, type PageId } from './pages/contract';
+import { ITEM_PAGE, opensPanel, type ItemId, type PageId, type PanelItemId } from './pages/contract';
 import { SECTION_IDS, type SectionId } from './sections/contract';
 
 /** URL path for each page. The one place paths are defined. */
@@ -32,6 +32,16 @@ export function itemForState(page: PageId | null, state: unknown): ItemId | null
   if (!page || typeof state !== 'object' || state === null || !('item' in state)) return null;
   const { item } = state;
   return typeof item === 'string' && Object.hasOwn(ITEM_PAGE, item) && ITEM_PAGE[item as ItemId] === page ? (item as ItemId) : null;
+}
+
+/** History state a marker that opens a panel pushes. The URL stays as it is (`/` with the section hash). */
+export const panelState = (item: PanelItemId) => ({ panel: item });
+
+/** The panel a history entry's state names, or null when it names none, or when the entry isn't on `/` (a page). */
+export function panelForState(page: PageId | null, state: unknown): PanelItemId | null {
+  if (page || typeof state !== 'object' || state === null || !('panel' in state)) return null;
+  const { panel } = state;
+  return typeof panel === 'string' && Object.hasOwn(ITEM_PAGE, panel) && opensPanel(panel as ItemId) ? (panel as PanelItemId) : null;
 }
 
 /** Hash that marks a section on `/`, for example `#projects`. */

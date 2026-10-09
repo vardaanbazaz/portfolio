@@ -1,6 +1,7 @@
 import { content } from '../content/pages/experience';
 import { PAGE_LABELS } from '../content/scene';
 import { itemHeadingId, PAGE_ITEMS, type PageProps } from './contract';
+import { RoleBody } from './RoleBody';
 
 const ITEMS = PAGE_ITEMS.experience!;
 
@@ -17,15 +18,7 @@ export default function ExperiencePage({ headingId }: PageProps) {
           <h2 id={itemHeadingId(ITEMS[i])} tabIndex={-1}>
             {role.org}
           </h2>
-          <p>{role.title}</p>
-          <p className="muted">
-            {role.where} · {role.period}
-          </p>
-          <ul>
-            {role.points.map((point) => (
-              <li key={point}>{point}</li>
-            ))}
-          </ul>
+          <RoleBody role={role} />
         </section>
       ))}
 

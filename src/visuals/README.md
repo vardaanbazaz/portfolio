@@ -2,7 +2,7 @@
 
 The scene has two replaceable slots:
 
-- **Section visuals**: one per section, in `src/sections/<id>/`. A section can hold several markers. A marker opens either a whole page (Projects has one per project) or one item within a page (Experience has one per role, Publications one per paper).
+- **Section visuals**: one per section, in `src/sections/<id>/`. A section can hold several markers. A marker opens a whole page (Projects has one per project) or one item within a page (Experience has one per role, Publications one per paper). A short item opens as a panel beside its box in the scene; a long write-up opens its page scrolled to it.
 - **Environment**: everything between the sections, in `src/environment/<name>/`.
 
 Camera, routing and sound code import only each slot's contract (`contract.ts`) and registry (`registry.ts`). They never import a module's internals. To replace a visual, write a new module that satisfies the contract and point the registry at it.
@@ -38,7 +38,7 @@ export interface LocalBox {
   half: [x: number, y: number, z: number];
 }
 
-/** What a marker opens: a page, or one item within a page (the page opens scrolled to that item). */
+/** What a marker opens: a page, or one item within a page (its panel, or the page scrolled to it; see `PANEL_ITEMS`). */
 export interface MarkerTarget {
   page: PageId;
   /** An item of `page` (see `PAGE_ITEMS` in `src/pages/contract.ts`). Absent: the marker opens the whole page. */
@@ -66,7 +66,7 @@ export interface SectionLayout {
 export interface SectionVisualProps {
   /** 0 when the camera is far from this section, 1 at the section's path point. */
   proximity: FrameValue<number>;
-  /** The marker of this section whose page is opening, open or closing; null otherwise
+  /** The marker of this section whose page or panel is opening, open or closing; null otherwise
    *  (also null when the page was opened without an item, by its URL, and has several markers). */
   active: MarkerKey | null;
   /** The marker whose button or part of the visual is hovered or keyboard-focused; null otherwise. */
@@ -89,7 +89,11 @@ Additional rules for section visuals:
 - Keep the layout in the section's own `layout.ts` as plain data, so scene geometry and tests can read it without loading the visual.
 - Draw only inside `bounds`. The scene lifts the visual by `bounds[1]`, so its bottom face sits on the floor. Each marker box stands on the floor too.
 - Draw each marker's part inside its `box`, and highlight it when `hovered` or `active` equals its `markerKey`.
-- An item marker's label comes from `ITEM_LABELS` in `src/content/scene.ts`; a page marker's from `PAGE_LABELS`. Give each item its own box. An item has no URL of its own: its marker opens the page at the page's path with the item in history state, the page scrolls to the item's heading (`itemHeadingId`) and focuses it, and the camera frames that item's box. Opened by its URL alone, a page with items frames the whole section.
+- An item marker's label comes from `ITEM_LABELS` in `src/content/scene.ts`; a page marker's from `PAGE_LABELS`. Give each item its own box. An item has no URL of its own. What its marker opens depends on `PANEL_ITEMS` in `src/pages/contract.ts`:
+  - **Panel items** (short: DRDO, AgryBin, Web Page Linker). The camera frames the item's box in one half of the screen (the left half, or the top half below 768 px wide) and a translucent HTML panel opens in the other half, joined to the box by a thin leader line. The scene keeps drawing around it. The URL stays as it is; the panel lives in history state, so Back closes it, as do Close, Escape and a press outside it. Its content comes from the page's content file.
+  - **Page items** (long write-ups: V-Surveillance). The marker opens the page at the page's path with the item in history state, the page scrolls to the item's heading (`itemHeadingId`) and focuses it, and the camera frames that item's box.
+  - The pages still show every item, for direct links and the HTML fallback. Opened by its URL alone, a page with items frames the whole section.
+- A panel's box is framed in half the screen, so it is drawn smaller than a page's. Highlight it on `active` as for a page; the leader line is the scene's, not the visual's.
 - `rowLayout` (`src/sections/row.ts`) lays out a straight row of boxes standing on the floor, one marker each. Give neighbouring boxes different heights so their marker buttons don't overlap on narrow screens.
 - Never attach to the scene itself (`attach="fog"` or `attach="background"`). The environment owns those.
 - Don't hide yourself by distance. The scene stops drawing a section once it is beyond the cull distance (`CULL_DISTANCE` in `src/scene/tuning.ts`).

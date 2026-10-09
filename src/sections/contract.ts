@@ -16,7 +16,7 @@ export interface LocalBox {
   half: Vec3;
 }
 
-/** What a marker opens: a page, or one item within a page (the page opens scrolled to that item). */
+/** What a marker opens: a page, or one item within a page (its panel, or the page scrolled to it; see `PANEL_ITEMS`). */
 export interface MarkerTarget {
   page: PageId;
   /** An item of `page` (see `PAGE_ITEMS`). Absent: the marker opens the whole page. */
@@ -47,7 +47,7 @@ export interface SectionVisualProps {
   /** 0 when the camera is far from this section, 1 at the section's path point.
    *  Updated every frame; read `.current` inside useFrame. */
   proximity: FrameValue<number>;
-  /** The marker of this section whose page is opening, open or closing; null otherwise
+  /** The marker of this section whose page or panel is opening, open or closing; null otherwise
    *  (also null when the page was opened without an item, by its URL, and has several markers). */
   active: MarkerKey | null;
   /** The marker whose button or part of the visual is hovered or keyboard-focused; null otherwise. */

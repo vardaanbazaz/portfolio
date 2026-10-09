@@ -1,6 +1,6 @@
 import type { MarkerKey } from '../sections/contract';
 
-/** Marker buttons by marker, so focus can return to one after its page closes. */
+/** Marker buttons by marker, so focus can return to one after its page or panel closes. */
 const markers = new Map<MarkerKey, HTMLButtonElement>();
 
 export function registerMarker(key: MarkerKey, el: HTMLButtonElement | null) {

@@ -6,7 +6,7 @@ import type { Phase } from '../store';
 import { SECTION_IDS, type MarkerTarget } from '../sections/contract';
 import { cameraPose, dampTowards, fovForAspect, scrollProgress, SECTION_T, sectionProximity } from './cameraPath';
 import type { FrameState } from './frameState';
-import { inspectPose, sectionCentreHeights } from './layout';
+import { inspectPose, sectionCentreHeights, type Framing } from './layout';
 import { takeCameraSnap } from './menuTravel';
 import { CAMERA_DAMPING, FLY_SECONDS } from './tuning';
 
@@ -19,23 +19,25 @@ const look = new Vector3();
 interface CameraRigProps {
   frame: FrameState;
   phase: Phase;
-  /** The page (and item) opening, open or closing; null while exploring. */
+  /** The page (and item), or the item's panel, opening, open or closing; null while exploring. */
   target: MarkerTarget | null;
+  /** Where the target's box goes on screen: the whole frame for a page, one half beside a panel. */
+  framing: Framing;
   onFlyInDone: () => void;
   onFlyOutDone: () => void;
 }
 
 /** Moves the camera along the path, easing toward the window's scroll position,
- *  and blends to the inspect pose of the clicked marker's box while its page is opening, open or closing. */
-export function CameraRig({ frame, phase, target, onFlyInDone, onFlyOutDone }: CameraRigProps) {
+ *  and blends to the inspect pose of the clicked marker's box while its page or panel is opening, open or closing. */
+export function CameraRig({ frame, phase, target, framing, onFlyInDone, onFlyOutDone }: CameraRigProps) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   const invalidate = useThree((s) => s.invalidate);
   const aspect = size.width / size.height;
   const maxScroll = useRef(0);
   const started = useRef(false);
-  /** 0 on the path, 1 at the page's inspect pose. */
-  const blend = useRef(phase === 'pageOpen' || phase === 'closing' ? 1 : 0);
+  /** 0 on the path, 1 at the inspect pose. */
+  const blend = useRef(phase === 'open' || phase === 'closing' ? 1 : 0);
 
   useEffect(() => {
     const measure = () => {
@@ -79,9 +81,9 @@ export function CameraRig({ frame, phase, target, onFlyInDone, onFlyOutDone }: C
     return () => controls.stop();
   }, [phase, onFlyInDone, onFlyOutDone]);
 
-  // Redraw once when the frameloop goes on demand, so the open page sits over the final pose.
+  // Redraw once when the frameloop goes on demand (an open page), so the page sits over the final pose.
   useEffect(() => {
-    if (phase === 'pageOpen') invalidate();
+    if (phase === 'open') invalidate();
   }, [phase, invalidate]);
 
   useFrame((_, delta) => {
@@ -98,7 +100,7 @@ export function CameraRig({ frame, phase, target, onFlyInDone, onFlyOutDone }: C
     cameraPose(t, aspect, sectionCentreHeights, pathPosition, pathLook);
     const b = target ? blend.current : 0;
     if (b > 0 && target) {
-      inspectPose(target, aspect, inspectPosition, inspectLook);
+      inspectPose(target, aspect, inspectPosition, inspectLook, framing);
       camera.position.lerpVectors(pathPosition, inspectPosition, b);
       look.lerpVectors(pathLook, inspectLook, b);
     } else {

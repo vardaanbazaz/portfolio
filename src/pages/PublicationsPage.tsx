@@ -1,38 +1,12 @@
 import { useRef, useState } from 'react';
 import { content } from '../content/pages/publications';
 import { PAGE_LABELS } from '../content/scene';
-import type { Citation } from '../content/types';
 import { UI } from '../ui/strings';
+import { CitationMeta } from './CitationMeta';
 import { itemHeadingId, PAGE_ITEMS, type PageProps } from './contract';
 import { copyText, type CopyState } from './copyText';
 
 const ITEMS = PAGE_ITEMS.publications!;
-
-/** Venue, date, authors with role, and the DOI and IEEE Xplore links. Shared by the write-up and the citations. */
-function CitationMeta({ paper }: { paper: Citation }) {
-  return (
-    <>
-      <p className="muted">
-        {paper.venue} · {paper.date}
-      </p>
-      <p>
-        {UI.authors} {paper.authors.join(', ')} <span className="pill">{paper.authorRole}</span>
-      </p>
-      <ul className="link-list">
-        <li>
-          <a href={`https://doi.org/${paper.doi}`} target="_blank" rel="noreferrer">
-            {UI.doiLink(paper.doi)}
-          </a>
-        </li>
-        <li>
-          <a href={paper.xploreUrl} target="_blank" rel="noreferrer">
-            {UI.openOnXplore}
-          </a>
-        </li>
-      </ul>
-    </>
-  );
-}
 
 export default function PublicationsPage({ headingId }: PageProps) {
   const { writeUp, citations } = content;
@@ -141,7 +115,7 @@ export default function PublicationsPage({ headingId }: PageProps) {
             {paper.title}
           </h2>
           <CitationMeta paper={paper} />
-          <p>{paper.contribution}</p>
+          <p>{paper.summary}</p>
         </section>
       ))}
     </article>

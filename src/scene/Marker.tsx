@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { markerLabel, PAGE_LABELS } from '../content/scene';
+import { opensPanel } from '../pages/contract';
 import { markerKey, type MarkerTarget } from '../sections/contract';
 import { UI } from '../ui/strings';
 import { registerMarker } from './markerRegistry';
@@ -15,13 +16,16 @@ export function Marker({ target, onOpen, onHoverChange }: MarkerProps) {
   const key = markerKey(target);
   const ref = useCallback((el: HTMLButtonElement | null) => registerMarker(key, el), [key]);
   const label = markerLabel(target);
+  const panel = opensPanel(target.item);
 
   return (
     <button
       ref={ref}
       type="button"
       className="marker"
-      aria-label={target.item ? UI.openItem(label, PAGE_LABELS[target.page]) : UI.openPage(label)}
+      // A panel opens in place, so its label names no page.
+      aria-label={target.item && !panel ? UI.openItem(label, PAGE_LABELS[target.page]) : UI.openPage(label)}
+      aria-haspopup={panel ? 'dialog' : undefined}
       onClick={() => onOpen(target)}
       onPointerEnter={() => onHoverChange(true)}
       onPointerLeave={() => onHoverChange(false)}

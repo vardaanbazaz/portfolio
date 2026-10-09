@@ -43,7 +43,8 @@ button:hover {
 
 button:focus-visible,
 h1:focus-visible,
-h2:focus-visible {
+h2:focus-visible,
+.panel a:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -145,6 +146,77 @@ h2:focus-visible {
 
 .scene-hidden {
   visibility: hidden;
+}
+
+/* While a panel is up, the scene's text and marker buttons would show through it. The trackers set visibility
+   inline every frame, so this overrides them. */
+.scene-panel .landing,
+.scene-panel .caption,
+.scene-panel .marker {
+  visibility: hidden !important;
+}
+
+/* A panel: translucent, beside its box, over the scene that keeps drawing. The layer itself lets presses through,
+   so a press beside the panel reaches the page and closes it. Same z-index as a page; only one is ever open. */
+.panel-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.panel-leader {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.panel-leader line {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+
+/* Right half, vertically centred, clear of the menu (top right) and the mute toggle (bottom right). */
+.panel {
+  box-sizing: border-box;
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  width: min(28rem, calc(50% - 32px));
+  max-height: calc(100% - 152px);
+  transform: translateY(-50%);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+  pointer-events: auto;
+  background: rgb(20 20 23 / 0.72);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: auto;
+}
+
+.panel h2 {
+  margin: 16px 0 8px;
+  font-size: 1.25rem;
+}
+
+.panel a {
+  color: var(--text);
+}
+
+/* Bottom half, between the middle of the screen and the mute toggle. Same width as the panel-layout query in
+   src/scene/panelLayout.ts. */
+@media (max-width: 767px) {
+  .panel {
+    top: 50%;
+    right: 16px;
+    bottom: 76px;
+    left: 16px;
+    width: auto;
+    max-height: none;
+    transform: none;
+  }
 }
 
 /* A page: opaque, full viewport, its own scroll container. */

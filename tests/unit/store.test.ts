@@ -4,6 +4,7 @@ import { createStore, INITIAL_STATE, reduce, type AppEvent, type AppState } from
 const run = (events: AppEvent[], from: AppState = INITIAL_STATE) => events.reduce(reduce, from);
 const boot = (route: AppState['route']): AppEvent => ({ type: 'boot', route });
 const route = (r: AppState['route'], item?: AppState['item']): AppEvent => ({ type: 'route', route: r, item });
+const panel = (p: AppState['routePanel']): AppEvent => ({ type: 'route', route: null, panel: p });
 
 describe('boot', () => {
   it('goes straight to exploring on /', () => {
@@ -13,11 +14,13 @@ describe('boot', () => {
 
   it('opens the page straight away on a direct load, with no fly-in or fade, and the scene hidden', () => {
     expect(run([boot('publications')])).toEqual({
-      phase: 'pageOpen',
+      phase: 'open',
       page: 'publications',
       item: null,
+      panel: false,
       route: 'publications',
       routeItem: null,
+      routePanel: null,
       returnFocus: null,
       sceneHidden: true,
     });
@@ -34,8 +37,8 @@ describe('items', () => {
 
   it('flies in to the item, and returns focus to its marker', () => {
     const open = run([route('experience', 'agrybin'), { type: 'flyInDone' }], exploring);
-    expect(open).toMatchObject({ phase: 'pageOpen', page: 'experience', item: 'agrybin', routeItem: 'agrybin' });
-    const back = run([route(null), { type: 'pageHidden' }, { type: 'flyOutDone' }], open);
+    expect(open).toMatchObject({ phase: 'open', page: 'experience', item: 'agrybin', routeItem: 'agrybin' });
+    const back = run([route(null), { type: 'hidden' }, { type: 'flyOutDone' }], open);
     expect(back).toMatchObject({ phase: 'exploring', page: null, item: null, routeItem: null });
     expect(back.returnFocus).toEqual({ page: 'experience', item: 'agrybin' });
   });
@@ -56,6 +59,63 @@ describe('items', () => {
   });
 });
 
+describe('panels', () => {
+  const exploring = run([boot(null)]);
+
+  it('flies in to the item’s box and opens its panel, with the URL left on /', () => {
+    const flying = run([panel('drdo')], exploring);
+    expect(flying).toMatchObject({ phase: 'flyingIn', page: 'experience', item: 'drdo', panel: true, route: null });
+    expect(run([{ type: 'flyInDone' }], flying)).toMatchObject({ phase: 'open', panel: true });
+  });
+
+  it('runs the full cycle, keeps the scene showing throughout, and returns focus to the item’s marker', () => {
+    const events: AppEvent[] = [
+      panel('web-page-linker'),
+      { type: 'flyInDone' },
+      { type: 'shown' },
+      panel(null),
+      { type: 'hidden' },
+      { type: 'flyOutDone' },
+    ];
+    const states = events.reduce<AppState[]>((acc, e) => [...acc, reduce(acc[acc.length - 1], e)], [exploring]);
+    expect(states.map((s) => s.phase)).toEqual(['exploring', 'flyingIn', 'open', 'open', 'closing', 'flyingOut', 'exploring']);
+    expect(states.every((s) => !s.sceneHidden)).toBe(true);
+    expect(states.at(-1)).toMatchObject({
+      page: null,
+      item: null,
+      panel: false,
+      routePanel: null,
+      returnFocus: { page: 'publications', item: 'web-page-linker' },
+    });
+  });
+
+  it('Back during the fly-in reverses it, and Forward reverses again', () => {
+    const back = run([panel('agrybin'), panel(null)], exploring);
+    expect(back).toMatchObject({ phase: 'flyingOut', item: 'agrybin', panel: true });
+    expect(run([panel('agrybin')], back)).toMatchObject({ phase: 'flyingIn', item: 'agrybin', panel: true });
+  });
+
+  it('a different panel, or a page, waits until the camera is back on the path', () => {
+    const open = run([panel('drdo'), { type: 'flyInDone' }], exploring);
+    const next = run([panel('agrybin')], open);
+    expect(next).toMatchObject({ phase: 'closing', item: 'drdo', routePanel: 'agrybin' });
+    expect(run([{ type: 'hidden' }, { type: 'flyOutDone' }], next)).toMatchObject({
+      phase: 'flyingIn',
+      item: 'agrybin',
+      panel: true,
+    });
+    const toPage = run([route('publications', 'v-surveillance'), { type: 'hidden' }, { type: 'flyOutDone' }], open);
+    expect(toPage).toMatchObject({ phase: 'flyingIn', page: 'publications', item: 'v-surveillance', panel: false });
+  });
+
+  it('a panel never comes with a page route', () => {
+    expect(reduce(exploring, { type: 'route', route: 'experience', panel: 'drdo' })).toMatchObject({
+      routePanel: null,
+      panel: false,
+    });
+  });
+});
+
 describe('open and close', () => {
   const exploring = run([boot(null)]);
 
@@ -64,13 +124,13 @@ describe('open and close', () => {
       route('datavista'),
       { type: 'flyInDone' },
       route(null),
-      { type: 'pageHidden' },
+      { type: 'hidden' },
       { type: 'flyOutDone' },
     ].reduce<AppState[]>((acc, e) => [...acc, reduce(acc[acc.length - 1], e as AppEvent)], [exploring]);
     expect(states.map((s) => s.phase)).toEqual([
       'exploring',
       'flyingIn',
-      'pageOpen',
+      'open',
       'closing',
       'flyingOut',
       'exploring',
@@ -80,7 +140,7 @@ describe('open and close', () => {
   });
 
   it('closes a direct-loaded page through the normal fly-out', () => {
-    const s = run([route(null), { type: 'pageHidden' }, { type: 'flyOutDone' }], run([boot('experience')]));
+    const s = run([route(null), { type: 'hidden' }, { type: 'flyOutDone' }], run([boot('experience')]));
     // No item: focus goes to the page's first marker (see returnMarker).
     expect(s).toMatchObject({ phase: 'exploring', page: null, returnFocus: { page: 'experience' } });
   });
@@ -103,7 +163,7 @@ describe('route changes mid-flight', () => {
   it('Forward while the page fades out reopens it', () => {
     const closing = run([{ type: 'flyInDone' }, route(null)], flyingIn);
     expect(closing.phase).toBe('closing');
-    expect(run([route('publications')], closing).phase).toBe('pageOpen');
+    expect(run([route('publications')], closing).phase).toBe('open');
   });
 
   it('a different page waits until the camera is back on the path, then flies in', () => {
@@ -118,11 +178,11 @@ describe('scene hiding', () => {
 
   it('keeps the scene visible while the page fades in, and hides it once the fade is done', () => {
     expect(pageOpen.sceneHidden).toBe(false);
-    expect(run([{ type: 'pageShown' }], pageOpen).sceneHidden).toBe(true);
+    expect(run([{ type: 'shown' }], pageOpen).sceneHidden).toBe(true);
   });
 
   it('shows the scene again as soon as the page starts fading out', () => {
-    const closing = run([{ type: 'pageShown' }, route(null)], pageOpen);
+    const closing = run([{ type: 'shown' }, route(null)], pageOpen);
     expect(closing).toMatchObject({ phase: 'closing', sceneHidden: false });
   });
 
@@ -131,14 +191,14 @@ describe('scene hiding', () => {
   });
 
   it('waits for a fresh fade-in when Forward reopens a page mid-fade-out', () => {
-    const reopened = run([{ type: 'pageShown' }, route(null), route('datavista')], pageOpen);
-    expect(reopened).toMatchObject({ phase: 'pageOpen', sceneHidden: false });
-    expect(run([{ type: 'pageShown' }], reopened).sceneHidden).toBe(true);
+    const reopened = run([{ type: 'shown' }, route(null), route('datavista')], pageOpen);
+    expect(reopened).toMatchObject({ phase: 'open', sceneHidden: false });
+    expect(run([{ type: 'shown' }], reopened).sceneHidden).toBe(true);
   });
 
   it('ignores a late fade-in event once the page is closing', () => {
     const closing = run([route(null)], pageOpen);
-    expect(reduce(closing, { type: 'pageShown' })).toBe(closing);
+    expect(reduce(closing, { type: 'shown' })).toBe(closing);
   });
 });
 
@@ -147,8 +207,8 @@ describe('ignored events', () => {
     const s = run([boot(null)]);
     for (const e of [
       { type: 'flyInDone' },
-      { type: 'pageShown' },
-      { type: 'pageHidden' },
+      { type: 'shown' },
+      { type: 'hidden' },
       { type: 'flyOutDone' },
       route(null),
     ] as AppEvent[]) {

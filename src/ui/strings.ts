@@ -5,6 +5,7 @@ export const UI = {
   openPage: (label: string) => `Open ${label}`,
   openItem: (label: string, pageLabel: string) => `Open ${label} in ${pageLabel}`,
   back: 'Back',
+  close: 'Close',
   mute: 'Mute',
   menu: 'Menu',
   menuLabel: 'Sections',

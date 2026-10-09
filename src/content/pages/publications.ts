@@ -107,9 +107,9 @@ export const content: PublicationsContent = {
       authorRole: 'Co-author', // :434
       doi: '10.1109/IATMSI60426.2024.10503405', // :435
       xploreUrl: 'https://ieeexplore.ieee.org/abstract/document/10503405', // :436
-      // :437, the summary's second sentence (the contribution line)
-      contribution:
-        'My part: researching and comparing candidate approaches and technologies, and contributing to the OOP-based implementation.',
+      // :437, the whole summary (its second sentence is the contribution line)
+      summary:
+        'A Python object-oriented wrapper that encapsulates web-page <div> functionality into reusable classes. My part: researching and comparing candidate approaches and technologies, and contributing to the OOP-based implementation.',
     },
   ],
 };

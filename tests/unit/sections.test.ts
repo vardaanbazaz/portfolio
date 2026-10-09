@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { content as experience } from '../../src/content/pages/experience';
 import { content as publications } from '../../src/content/pages/publications';
-import { ITEM_LABELS, markerLabel, PAGE_LABELS, SECTION_LINES, SECTION_TITLES } from '../../src/content/scene';
-import { ITEM_PAGE, PAGE_IDS, PAGE_ITEMS } from '../../src/pages/contract';
+import { ITEM_LABELS, markerLabel, PAGE_LABELS, SECTION_LINES, SECTION_NOTES, SECTION_TITLES } from '../../src/content/scene';
+import { ITEM_PAGE, opensPanel, PAGE_IDS, PAGE_ITEMS, PANEL_ITEMS } from '../../src/pages/contract';
+import { citationFor } from '../../src/panels/citationItem';
+import { roleFor } from '../../src/panels/roleItem';
 import { Vector3 } from 'three';
 import { landingOpacity, pathPos, SECTION_T } from '../../src/scene/cameraPath';
 import { sectionInRange } from '../../src/scene/culling';
@@ -112,6 +114,40 @@ describe('item headings on the pages', () => {
     expect(titles).toHaveLength(PAGE_ITEMS.publications!.length);
     expect(titles[0].startsWith('V-Surveillance')).toBe(true);
     expect(titles[1]).toContain('Web Page Linker');
+  });
+});
+
+describe('what each marker opens', () => {
+  it('opens a panel for the short items only, and the page for everything else', () => {
+    expect(MARKERS.filter((m) => opensPanel(m.marker.item)).map((m) => m.key)).toEqual(['drdo', 'agrybin', 'web-page-linker']);
+    expect(opensPanel('v-surveillance')).toBe(false);
+    expect(opensPanel(undefined)).toBe(false);
+  });
+
+  it('finds each panel’s content, headed by its marker’s label', () => {
+    for (const item of PANEL_ITEMS) {
+      const heading = ITEM_PAGE[item] === 'experience' ? roleFor(item)?.org : citationFor(item)?.title;
+      expect(heading, item).toBeTruthy();
+      expect(heading!.toLowerCase()).toContain(ITEM_LABELS[item].toLowerCase());
+    }
+  });
+
+  it('shows Web Page Linker’s whole live summary, both sentences', () => {
+    expect(citationFor('web-page-linker')?.summary).toBe(
+      'A Python object-oriented wrapper that encapsulates web-page <div> functionality into reusable classes. My part: researching and comparing candidate approaches and technologies, and contributing to the OOP-based implementation.',
+    );
+  });
+});
+
+describe('Experience captions', () => {
+  it('names the roles without repeating the box labels', () => {
+    expect(SECTION_LINES.experience).toBe('Research and Development Intern · Web/App Developer');
+    for (const item of PAGE_ITEMS.experience!) expect(SECTION_LINES.experience).not.toContain(ITEM_LABELS[item]);
+  });
+
+  it('adds the Mahyco line from the Experience content as a second line', () => {
+    expect(SECTION_NOTES.experience).toBe(experience.also);
+    expect(SECTION_NOTES.experience).toMatch(/^Also: .*Mahyco/);
   });
 });
 

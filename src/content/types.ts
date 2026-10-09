@@ -44,7 +44,7 @@ export interface Citation {
   authorRole: string;
   doi: string;
   xploreUrl: string;
-  contribution: string;
+  summary: string;
 }
 
 export interface PipelineStage {
@@ -66,7 +66,7 @@ export interface ResultRow {
 export interface PaperWriteUp extends Citation {
   subtitle: string;
   pills: readonly string[];
-  summary: string;
+  contribution: string;
   pipeline: readonly PipelineStage[];
   results: {
     formula: string;
@@ -84,7 +84,7 @@ export interface PaperWriteUp extends Citation {
 
 export interface PublicationsContent {
   writeUp: PaperWriteUp;
-  /** Citation and contribution line only, beneath the write-up. */
+  /** Citation and summary only, beneath the write-up. */
   citations: readonly Citation[];
 }
 

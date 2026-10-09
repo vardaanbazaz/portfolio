@@ -15,7 +15,7 @@ interface SectionAnchorProps extends SectionHandlers {
   id: SectionId;
   proximity: FrameValue<number>;
   quality: Quality;
-  /** The marker of this section whose page is opening, open or closing. */
+  /** The marker of this section whose page or panel is opening, open or closing. */
   active: MarkerKey | null;
   /** The marker whose button is hovered or keyboard-focused, if it is in this section. */
   markerHovered: MarkerKey | null;

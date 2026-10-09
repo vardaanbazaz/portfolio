@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { PAGE_IDS } from '../../src/pages/contract';
-import { itemForState, itemState, PAGE_PATHS, pageForPath, sectionForHash, sectionHash } from '../../src/routes';
+import {
+  itemForState,
+  itemState,
+  PAGE_PATHS,
+  pageForPath,
+  panelForState,
+  panelState,
+  sectionForHash,
+  sectionHash,
+} from '../../src/routes';
 import { SECTION_IDS } from '../../src/sections/contract';
 
 describe('page routes', () => {
@@ -56,6 +65,25 @@ describe('items in history state', () => {
     expect(itemForState('experience', { item: 'toString' })).toBeNull();
     expect(itemForState('experience', { item: 'v-surveillance' })).toBeNull();
     expect(itemForState(null, { item: 'drdo' })).toBeNull();
+  });
+});
+
+describe('panels in history state', () => {
+  it('round-trips each panel item on /', () => {
+    for (const item of ['drdo', 'agrybin', 'web-page-linker'] as const) expect(panelForState(null, panelState(item))).toBe(item);
+  });
+
+  it('ignores an item that opens its page, and missing, malformed or unknown state', () => {
+    expect(panelForState(null, { panel: 'v-surveillance' })).toBeNull();
+    expect(panelForState(null, null)).toBeNull();
+    expect(panelForState(null, 'drdo')).toBeNull();
+    expect(panelForState(null, { panel: 42 })).toBeNull();
+    expect(panelForState(null, { panel: 'toString' })).toBeNull();
+    expect(panelForState(null, itemState('drdo'))).toBeNull();
+  });
+
+  it('ignores a panel on a page’s entry', () => {
+    expect(panelForState('experience', panelState('drdo'))).toBeNull();
   });
 });
 
