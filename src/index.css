@@ -140,7 +140,7 @@ h2:focus-visible,
   color: var(--muted);
 }
 
-.landing-gloss + .landing-subline {
+.landing-gloss+.landing-subline {
   margin-top: 16px;
 }
 
@@ -345,7 +345,7 @@ h2:focus-visible,
   list-style: none;
 }
 
-.contents li + li {
+.contents li+li {
   margin-top: 4px;
 }
 
@@ -362,7 +362,7 @@ h2:focus-visible,
 }
 
 /* Reserves the line, so the message appearing doesn't push the links down. */
-.contact-actions + [role='status'] {
+.contact-actions+[role='status'] {
   min-height: 1.5em;
 }
 
@@ -390,7 +390,7 @@ h2:focus-visible,
   padding-left: 1.5em;
 }
 
-.pipeline li + li {
+.pipeline li+li {
   margin-top: 16px;
 }
 
@@ -424,7 +424,7 @@ h2:focus-visible,
   border-bottom: 1px solid var(--line);
 }
 
-.table-scroll tbody tr:last-child > * {
+.table-scroll tbody tr:last-child>* {
   border-bottom: none;
 }
 
@@ -530,4 +530,12 @@ h2:focus-visible,
   background: var(--text);
   border-color: var(--text);
   color: var(--bg);
+}
+
+/* Verse translation and source: full-strength text at body size. */
+.verse-gloss,
+.muted.verse-gloss,
+.landing-gloss {
+  font-size: 1rem;
+  color: var(--text);
 }
