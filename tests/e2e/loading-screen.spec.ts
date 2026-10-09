@@ -33,17 +33,42 @@ async function expectAllButOne(page: Page) {
   await expect(loadingScreen(page)).toHaveAttribute('data-total', String(TOTAL_STEPS));
 }
 
-test.describe('before any script has run', () => {
+test('before any script has run, the loading screen shows the name, an empty bar and a Loading status, over an inert page', async ({
+  page,
+}) => {
+  // The site's entry script is never answered, so none of the site's code runs.
+  let entryRequested = false;
+  await page.route(chunkPattern('index'), () => {
+    entryRequested = true;
+  });
+  // 'commit': the document's load events wait on its module scripts, so they never come.
+  await page.goto('/', { waitUntil: 'commit' });
+  await expect.poll(() => entryRequested).toBe(true);
+
+  await expect(loadingScreen(page)).toBeVisible();
+  await expect(loadingScreen(page).getByText('Vardaan', { exact: true })).toBeVisible();
+  await expect(page.getByRole('status')).toHaveText('Loading');
+  await expect(loadingScreen(page).locator('.loading-screen-bar')).toBeVisible();
+  await expect(loadingScreen(page).locator('.loading-screen-fill')).toHaveCSS('transform', 'matrix(0, 0, 0, 1, 0, 0)');
+  await expect(loadingScreen(page)).not.toHaveAttribute('data-done');
+  await expect(page.locator('#root')).toHaveAttribute('inert');
+  await expect(page.locator('#root')).toBeEmpty();
+  await expect(page.locator('html')).toHaveClass('booting');
+});
+
+test.describe('with JavaScript off', () => {
   test.use({ javaScriptEnabled: false });
 
-  test('the loading screen shows the name, an empty bar and a Loading status, over an inert page', async ({ page }) => {
+  test('the loading screen shows the name and the no-JavaScript message, with no bar and no Loading status', async ({ page }) => {
     await page.goto('/');
-    await expect(loadingScreen(page)).toBeVisible();
     await expect(loadingScreen(page).getByText('Vardaan', { exact: true })).toBeVisible();
-    await expect(page.getByRole('status')).toHaveText('Loading');
-    await expect(loadingScreen(page).locator('.loading-screen-bar')).toBeVisible();
-    await expect(page.locator('#root')).toHaveAttribute('inert');
-    await expect(page.locator('html')).toHaveClass('booting');
+    // By CSS: Playwright's text search skips whatever is inside <noscript>.
+    const message = loadingScreen(page).locator('noscript p');
+    await expect(message).toBeVisible();
+    await expect(message).toHaveText('This site needs JavaScript. Turn it on and reload.');
+    await expect(loadingScreen(page).locator('.loading-screen-bar')).toBeHidden();
+    await expect(loadingScreen(page).locator('.loading-screen-status')).toBeHidden();
+    await expect(page.getByRole('status')).toHaveCount(0);
   });
 });
 
