@@ -1,7 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { AnimatePresence } from 'motion/react';
-import { PAGE_LABELS, SITE_NAME } from './content/scene';
 import { opensPanel, PAGE_IDS } from './pages/contract';
 import { PageView } from './pages/PageView';
 import { pageLoaders } from './pages/registry';
@@ -28,7 +27,7 @@ import { MuteToggle } from './sound/MuteToggle';
 import { sound } from './sound/sound';
 import { appStore, useAppState } from './store';
 import { SectionMenu } from './ui/SectionMenu';
-import { UI } from './ui/strings';
+import { usePageHead } from './ui/pageHead';
 
 const FpsReadout = lazy(() => import('./dev/FpsReadout'));
 const showFps = import.meta.env.DEV || new URLSearchParams(window.location.search).has('fps');
@@ -93,7 +92,13 @@ function useScrollLock(locked: boolean, bootT: number | null) {
   }, [locked, bootT]);
 }
 
-function AppShell({ bootT }: { bootT: number | null }) {
+interface AppProps {
+  bootT: number | null;
+  /** The browser lost the scene's WebGL context; the visit moves to the HTML site. */
+  onContextLost: () => void;
+}
+
+function AppShell({ bootT, onContextLost }: AppProps) {
   const { phase, page, item, panel, route, returnFocus, sceneHidden } = useAppState();
   const location = useLocation();
   const navigate = useNavigate();
@@ -113,9 +118,7 @@ function AppShell({ bootT }: { bootT: number | null }) {
     });
   }, [location.pathname, location.state]);
 
-  useEffect(() => {
-    document.title = route ? UI.pageTitle(PAGE_LABELS[route]) : SITE_NAME;
-  }, [route]);
+  usePageHead(route);
 
   // Leaving the path (marker, Back to a page URL) stops a menu travel before the scroll lock saves the position.
   useLayoutEffect(() => {
@@ -153,10 +156,13 @@ function AppShell({ bootT }: { bootT: number | null }) {
       // Runs after useScrollLock has restored the old position, so the travel wins.
       pendingTravel.current = null;
       travel(destination);
-    } else if (returnFocus) {
-      focusMarker(returnMarker(returnFocus));
+    } else {
+      // Back on the path where the page or panel was (a direct load's close moves no scroll, so no scroll event
+      // syncs it): the hash names that section again, so a reload starts there.
+      syncHash();
+      if (returnFocus) focusMarker(returnMarker(returnFocus));
     }
-  }, [phase, returnFocus, travel]);
+  }, [phase, returnFocus, travel, syncHash]);
 
   // A short item's marker opens its panel: a new history entry at the same URL (query and hash included), with the
   // panel in its state, so Back closes it. Any other marker opens its page at the page's own URL; an item rides in
@@ -200,7 +206,7 @@ function AppShell({ bootT }: { bootT: number | null }) {
 
   return (
     <>
-      <SceneRoot onOpen={openTarget} hidden={sceneHidden} />
+      <SceneRoot onOpen={openTarget} hidden={sceneHidden} onContextLost={onContextLost} />
       <div className="scroll-spacer" style={{ '--pages': SCROLL_PAGES } as CSSProperties} />
       <Routes>
         <Route path="/" element={null} />
@@ -230,10 +236,10 @@ function AppShell({ bootT }: { bootT: number | null }) {
   );
 }
 
-export function App({ bootT }: { bootT: number | null }) {
+export function App({ bootT, onContextLost }: AppProps) {
   return (
     <BrowserRouter>
-      <AppShell bootT={bootT} />
+      <AppShell bootT={bootT} onContextLost={onContextLost} />
     </BrowserRouter>
   );
 }

@@ -21,7 +21,7 @@ export const content: ProjectContent = {
   ],
   figures: [
     { label: 'Tests:', value: 'Unit-tested, CI on GitHub Actions' },
-    { label: 'Persistence Engine:', value: 'DuckDB + Parquet Lake' },
+    { label: 'Storage:', value: 'DuckDB + Parquet Lake' },
     { label: 'Partitioning Scheme:', value: 'Hive-style UTC date partitions' },
   ],
   sections: [

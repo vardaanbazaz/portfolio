@@ -39,6 +39,8 @@ export default function ContactPage({ headingId }: PageProps) {
         <h2>{UI.links}</h2>
         <LinkList links={content.links} />
       </section>
+
+      <p className="muted">{content.privacy}</p>
     </article>
   );
 }

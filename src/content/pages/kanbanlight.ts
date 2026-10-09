@@ -13,17 +13,6 @@ export const content: ProjectContent = {
   pills: ['React 18', 'TypeScript', 'Vite', 'Tailwind CSS', 'IndexedDB (idb)', 'Node.js', 'Commander.js', 'WebSocket (ws)'],
   sections: [
     {
-      id: 'kanbanlight-overview',
-      contentsLabel: 'Overview',
-      heading: 'Overview',
-      blocks: [
-        {
-          kind: 'paragraph',
-          text: 'A browser-based Kanban board that borrows ideas from Git: branch a board, switch between branches, and compare them in a visual diff. Work in progress.',
-        },
-      ],
-    },
-    {
       id: 'kanbanlight-branches',
       contentsLabel: 'Branches',
       heading: 'Branches',

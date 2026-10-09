@@ -247,7 +247,7 @@ describe('Unified API Ingester page', () => {
 
   it('shows the three figures as a plain list', () => {
     expect(html).toContain(
-      '<dl><dt>Tests:</dt><dd>Unit-tested, CI on GitHub Actions</dd><dt>Persistence Engine:</dt><dd>DuckDB + Parquet Lake</dd><dt>Partitioning Scheme:</dt><dd>Hive-style UTC date partitions</dd></dl>',
+      '<dl><dt>Tests:</dt><dd>Unit-tested, CI on GitHub Actions</dd><dt>Storage:</dt><dd>DuckDB + Parquet Lake</dd><dt>Partitioning Scheme:</dt><dd>Hive-style UTC date partitions</dd></dl>',
     );
   });
 

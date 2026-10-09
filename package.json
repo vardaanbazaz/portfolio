@@ -8,7 +8,10 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "oxlint -c .oxlintrc.json src tests",
+    "check:urls": "node scripts/check-urls.mjs dist",
+    "e2e": "npm run build && npm run check:urls && playwright test"
   },
   "dependencies": {
     "@react-three/drei": "10.7.8",
@@ -20,6 +23,8 @@
     "three": "0.186.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.0",
+    "oxlint": "1.87.0",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@types/three": "0.186.0",

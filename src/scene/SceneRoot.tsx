@@ -26,9 +26,11 @@ const initialQuality = (): Quality => (window.innerWidth < NARROW_VIEWPORT_PX ? 
 interface SceneRootProps extends SectionHandlers {
   /** An opaque page fully covers the scene. */
   hidden: boolean;
+  /** The browser lost the WebGL context mid-visit. */
+  onContextLost: () => void;
 }
 
-export function SceneRoot({ onOpen, hidden }: SceneRootProps) {
+export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
   const { phase, page, item, panel } = useAppState();
   const stacked = usePanelStacked();
   const [startQuality] = useState(initialQuality);
@@ -61,7 +63,10 @@ export function SceneRoot({ onOpen, hidden }: SceneRootProps) {
         frameloop={phase === 'open' && !panel ? 'demand' : 'always'}
         gl={{ antialias: startQuality === 'high' }}
         camera={{ fov: BASE_FOV, near: 0.1, far: 200, position: pathPos(0).toArray() }}
-        onCreated={({ gl }) => gl.domElement.setAttribute('aria-hidden', 'true')}
+        onCreated={({ gl }) => {
+          gl.domElement.setAttribute('aria-hidden', 'true');
+          gl.domElement.addEventListener('webglcontextlost', onContextLost);
+        }}
       >
         <PerformanceMonitor bounds={() => [PERF_DECLINE_BELOW_FPS, Infinity]} onDecline={onDecline} />
         <CameraRig

@@ -115,6 +115,8 @@ function flush() {
 }
 
 const noop = () => { };
+/** Removes what `listen()` added. */
+let unlisten: () => void = noop;
 
 export const sound = {
   get muted() {
@@ -150,6 +152,20 @@ export const sound = {
     const unlock = () => sound.unlock();
     for (const type of GESTURE_EVENTS) target.addEventListener(type, unlock, { capture: true, passive: true });
     doc.addEventListener('visibilitychange', onVisibilityChange);
+    unlisten = () => {
+      for (const type of GESTURE_EVENTS) target.removeEventListener(type, unlock, { capture: true });
+      doc.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  },
+
+  /** Stops for good: no more presses create or wake the context, and an existing one is closed.
+   *  For the switch to the HTML site after a lost WebGL context, which has no sound. */
+  dispose() {
+    unlisten();
+    unlisten = noop;
+    pending = null;
+    if (context && context.state !== 'closed') void context.close().catch(() => { });
+    context = null;
   },
 
   /** Changes and saves the mute state. Never creates the AudioContext; the next press does. */

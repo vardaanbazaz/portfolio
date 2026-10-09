@@ -1,8 +1,3 @@
-/** Stage 1 stand-in for a page's content. Replaced by a real type per page when content arrives. */
-export interface PlaceholderContent {
-  note: string;
-}
-
 export interface ExternalLink {
   label: string;
   href: string;
@@ -142,4 +137,6 @@ export interface ContactContent {
   email: string;
   availability: string;
   links: readonly ExternalLink[];
+  /** What the site stores and loads. True only while the dist URL check passes. */
+  privacy: string;
 }

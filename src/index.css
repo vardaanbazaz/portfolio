@@ -230,6 +230,29 @@ h2:focus-visible,
   cursor: auto;
 }
 
+/* The HTML site: the same page, as a normal document that the window scrolls. */
+.page.page-static {
+  position: static;
+  overflow: visible;
+  min-height: 100vh;
+}
+
+.page-static section[id] {
+  scroll-margin-top: 16px;
+}
+
+.fallback-back {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 16px 0 0 16px;
+  padding: 0 16px;
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
 .page-back {
   position: sticky;
   top: 16px;

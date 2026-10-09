@@ -1,0 +1,60 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "@react-three/drei",
+            "importNames": [
+              "Environment",
+              "useEnvironment",
+              "Sky",
+              "Cloud",
+              "Clouds",
+              "Text",
+              "Text3D",
+              "useFont",
+              "useGLTF",
+              "Gltf",
+              "useFBX",
+              "useKTX2",
+              "useTexture",
+              "useCubeTexture",
+              "useVideoTexture",
+              "useMatcapTexture",
+              "useNormalTexture",
+              "Svg",
+              "Image",
+              "Splat"
+            ],
+            "message": "This drei feature fetches from an outside server (CDN preset, decoder, default font or remote asset). The site loads nothing from third parties."
+          },
+          {
+            "name": "three-stdlib",
+            "importNames": ["DRACOLoader", "KTX2Loader", "MeshoptDecoder", "GLTFLoader", "RGBELoader", "EXRLoader", "FontLoader"],
+            "message": "Loaders fetch files or decoders, often from a CDN. The site loads nothing from third parties."
+          }
+        ],
+        "patterns": [
+          {
+            "group": ["@react-three/drei/**"],
+            "message": "Import drei from its root, so the banned-feature list above applies."
+          },
+          {
+            "group": [
+              "three/examples/jsm/loaders/**",
+              "three/addons/loaders/**",
+              "three/examples/jsm/libs/**",
+              "three/addons/libs/**",
+              "three-stdlib/loaders/**",
+              "three-stdlib/libs/**"
+            ],
+            "message": "three's loaders and decoder libs fetch files or decoders, often from a CDN. The site loads nothing from third parties."
+          }
+        ]
+      }
+    ]
+  }
+}
