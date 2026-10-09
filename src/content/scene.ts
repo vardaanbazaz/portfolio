@@ -12,8 +12,8 @@ export const SITE_NAME = 'Vardaan';
 export const LANDING = {
   name: SITE_NAME,
   line: 'Placeholder line', // PLACEHOLDER
-  /** Decorative; the scene itself is the cue. */
-  scrollCue: '↓',
+  /** Shown as the word above the arrow. Hidden from screen readers; the menu is their way through. */
+  scrollCue: { label: 'Scroll', arrow: '↓' },
 };
 
 export const SECTION_TITLES: Record<SectionId, string> = {

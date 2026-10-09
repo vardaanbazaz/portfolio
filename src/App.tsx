@@ -5,8 +5,8 @@ import { PAGE_LABELS, SITE_NAME } from './content/scene';
 import { PAGE_IDS, type PageId } from './pages/contract';
 import { PageView } from './pages/PageView';
 import { pageLoaders } from './pages/registry';
-import { PAGE_PATHS, pageForPath, sectionHash } from './routes';
-import { SECTION_T } from './scene/cameraPath';
+import { PAGE_PATHS, pageForPath, sectionForHash, sectionHash } from './routes';
+import { nearestSection, scrollProgress, SECTION_T } from './scene/cameraPath';
 import { focusMarker } from './scene/markerRegistry';
 import { SceneRoot } from './scene/SceneRoot';
 import { SCROLL_PAGES } from './scene/tuning';
@@ -22,8 +22,30 @@ const showFps = import.meta.env.DEV || new URLSearchParams(window.location.searc
 
 const maxScroll = () => Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
 
-/** Scrolls to a section's point on the path; the camera eases there from wherever it is. */
-const scrollToSection = (id: SectionId) => window.scrollTo(0, SECTION_T[id] * maxScroll());
+/** Where the menu can send the camera: a section, or the top of the path (the landing view). */
+type Destination = SectionId | 'top';
+
+/** Scrolls to a destination's point on the path; the camera eases there from wherever it is. */
+const scrollToDestination = (to: Destination) => window.scrollTo(0, to === 'top' ? 0 : SECTION_T[to] * maxScroll());
+
+/** While the visitor explores `/`, keeps the hash on the nearest section (none on the landing stretch),
+ *  replacing the history entry only when that section changes. A reload then starts there. */
+function useHashFollowsScroll() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const onScroll = () => {
+      // window.location, not the router's location: it updates the moment navigate() runs,
+      // so a burst of scroll events can't replace the entry twice for one change.
+      if (appStore.get().phase !== 'exploring' || window.location.pathname !== '/') return;
+      const section = nearestSection(scrollProgress(window.scrollY, maxScroll()));
+      if (section === sectionForHash(window.location.hash)) return;
+      navigate({ pathname: '/', hash: section ? sectionHash(section) : '' }, { replace: true });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [navigate]);
+}
 
 /** Locks page scroll whenever the visitor isn't exploring, and puts the scroll position back on unlock. */
 function useScrollLock(locked: boolean, bootT: number | null) {
@@ -54,8 +76,8 @@ function AppShell({ bootT }: { bootT: number | null }) {
   const location = useLocation();
   const navigate = useNavigate();
   const closeRequested = useRef(false);
-  /** Section chosen in the menu while a page was open or a flight was running; travelled to once exploring. */
-  const travelTo = useRef<SectionId | null>(null);
+  /** Destination chosen in the menu while a page was open or a flight was running; travelled to once exploring. */
+  const travelTo = useRef<Destination | null>(null);
 
   // The URL is the source of truth: every change (marker, close, menu, Back, Forward) goes through here.
   useEffect(() => {
@@ -67,6 +89,7 @@ function AppShell({ bootT }: { bootT: number | null }) {
   }, [route]);
 
   useScrollLock(phase !== 'exploring', bootT);
+  useHashFollowsScroll();
 
   // A sweep held for a context that isn't running yet is dropped when its flight ends.
   useEffect(() => {
@@ -82,11 +105,11 @@ function AppShell({ bootT }: { bootT: number | null }) {
   useEffect(() => {
     if (phase === 'pageOpen') closeRequested.current = false;
     if (phase !== 'exploring') return;
-    const section = travelTo.current;
-    if (section) {
+    const destination = travelTo.current;
+    if (destination) {
       // Runs after useScrollLock has restored the old position, so the travel wins.
       travelTo.current = null;
-      scrollToSection(section);
+      scrollToDestination(destination);
     } else if (returnFocus) {
       focusMarker(returnFocus);
     }
@@ -109,16 +132,17 @@ function AppShell({ bootT }: { bootT: number | null }) {
     else navigate(-1);
   }, [location.key, navigate]);
 
-  // Replaces the current entry with `/#section`, so no history entry is added. If a page is open
-  // (or a flight is running), that closes it, and the camera travels once it is back on the path.
-  const goToSection = useCallback(
-    (id: SectionId) => {
-      navigate({ pathname: '/', hash: sectionHash(id) }, { replace: true });
-      if (appStore.get().phase === 'exploring') scrollToSection(id);
-      else travelTo.current = id;
+  // Replaces the current entry with `/#section` (or plain `/` for the top), so no history entry is added.
+  // If a page is open (or a flight is running), that closes it, and the camera travels once it is back on the path.
+  const goTo = useCallback(
+    (to: Destination) => {
+      navigate({ pathname: '/', hash: to === 'top' ? '' : sectionHash(to) }, { replace: true });
+      if (appStore.get().phase === 'exploring') scrollToDestination(to);
+      else travelTo.current = to;
     },
     [navigate],
   );
+  const goToTop = useCallback(() => goTo('top'), [goTo]);
 
   const onPageShown = useCallback(() => appStore.dispatch({ type: 'pageShown' }), []);
   const onPageGone = useCallback(() => appStore.dispatch({ type: 'pageHidden' }), []);
@@ -140,7 +164,7 @@ function AppShell({ bootT }: { bootT: number | null }) {
           <PageView key={page} page={page} onBack={closePage} onShown={onPageShown} />
         )}
       </AnimatePresence>
-      <SectionMenu onSelect={goToSection} />
+      <SectionMenu onSelect={goTo} onTop={goToTop} />
       <MuteToggle />
       {showFps && (
         <Suspense fallback={null}>

@@ -80,7 +80,8 @@ export function SceneRoot({ onOpen, hidden }: SceneRootProps) {
         <h1 className="landing-name">{LANDING.name}</h1>
         <p className="landing-line">{LANDING.line}</p>
         <p className="landing-cue" aria-hidden="true">
-          {LANDING.scrollCue}
+          <span className="landing-cue-label">{LANDING.scrollCue.label}</span>
+          <span>{LANDING.scrollCue.arrow}</span>
         </p>
       </div>
       {SECTION_IDS.map((id) => (

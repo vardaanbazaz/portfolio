@@ -5,6 +5,7 @@ import {
   dampTowards,
   fovForAspect,
   lookPos,
+  nearestSection,
   pathPos,
   scrollProgress,
   SECTION_T,
@@ -14,7 +15,7 @@ import {
 import { SECTION_IDS } from '../../src/sections/contract';
 import { sectionCentreHeights, sectionToWorld } from '../../src/scene/layout';
 import { sectionLayouts } from '../../src/sections/layouts';
-import { BASE_FOV, MAX_FOV, SECTION_PROXIMITY_RADIUS } from '../../src/scene/tuning';
+import { BASE_FOV, LANDING_STRETCH_T, MAX_FOV, SECTION_PROXIMITY_RADIUS } from '../../src/scene/tuning';
 
 describe('scrollProgress', () => {
   it('maps scroll offset to 0..1 and clamps', () => {
@@ -145,5 +146,27 @@ describe('fovForAspect', () => {
   it('widens on portrait screens, up to the cap', () => {
     expect(fovForAspect(0.8)).toBeGreaterThan(BASE_FOV);
     expect(fovForAspect(390 / 844)).toBeLessThanOrEqual(MAX_FOV);
+  });
+});
+
+describe('nearestSection', () => {
+  it('is null on the landing stretch', () => {
+    expect(nearestSection(0)).toBeNull();
+    expect(nearestSection(LANDING_STRETCH_T - 0.001)).toBeNull();
+  });
+
+  it('is the first section from the end of the landing stretch on', () => {
+    expect(nearestSection(LANDING_STRETCH_T)).toBe(SECTION_IDS[0]);
+  });
+
+  it('is each section at its own point on the path, and the last at the end', () => {
+    for (const id of SECTION_IDS) expect(nearestSection(SECTION_T[id])).toBe(id);
+    expect(nearestSection(1)).toBe(SECTION_IDS[SECTION_IDS.length - 1]);
+  });
+
+  it('switches halfway between neighbouring sections', () => {
+    const mid = (SECTION_T.about + SECTION_T.projects) / 2;
+    expect(nearestSection(mid - 0.001)).toBe('about');
+    expect(nearestSection(mid + 0.001)).toBe('projects');
   });
 });

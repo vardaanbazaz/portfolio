@@ -7,11 +7,12 @@ import {
   PORTRAIT_PULLBACK,
   PORTRAIT_PULLBACK_MAX,
   LANDING_FADE_T,
+  LANDING_STRETCH_T,
   SECTION_LOOK_WEIGHT,
   SECTION_PROXIMITY_RADIUS,
 } from './tuning';
 
-/** Where on the path (0..1) each section sits. 0 to 0.1 is the landing stretch. */
+/** Where on the path (0..1) each section sits. 0 to LANDING_STRETCH_T is the landing stretch. */
 export const SECTION_T: Record<SectionId, number> = {
   about: 0.2,
   projects: 0.39,
@@ -79,6 +80,21 @@ export function sectionProximity(t: number, sectionT: number, radius = SECTION_P
   const d = Math.abs(t - sectionT);
   if (d >= radius) return 0;
   return smoothstep(1 - d / radius);
+}
+
+/** The section nearest to path position `t`, or null on the landing stretch. */
+export function nearestSection(t: number, landingEndT = LANDING_STRETCH_T): SectionId | null {
+  if (t < landingEndT) return null;
+  let nearest: SectionId | null = null;
+  let best = Infinity;
+  for (const id of Object.keys(SECTION_T) as SectionId[]) {
+    const d = Math.abs(t - SECTION_T[id]);
+    if (d < best) {
+      best = d;
+      nearest = id;
+    }
+  }
+  return nearest;
 }
 
 /** Opacity of the landing text: 1 at the start of the path, 0 from `fadeT` on. */

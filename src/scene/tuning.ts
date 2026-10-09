@@ -24,6 +24,9 @@ export const SECTION_LOOK_WEIGHT = 0.85;
 /** Path position (t) by which the landing text has faded out. */
 export const LANDING_FADE_T = 0.08;
 
+/** End of the landing stretch (t). Before it the URL carries no section hash; from it on, the nearest section's. */
+export const LANDING_STRETCH_T = 0.1;
+
 /** A section is not drawn while its bounding sphere is further than this from the camera.
  *  Matches the grey-box fog's far distance per quality, so a section is culled only once fog hides it. */
 export const CULL_DISTANCE = { high: 45, low: 30 } as const;
