@@ -2,7 +2,8 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
 import { LANDING, SECTION_LINES, SECTION_NOTES, SECTION_TITLES } from '../content/scene';
-import { environment } from '../environment/registry';
+import { environment, zoneVisuals } from '../environment/registry';
+import { ZoneVisuals } from '../environment/ZoneVisuals';
 import { SECTION_IDS } from '../sections/contract';
 import { MARKERS, markerAt, type PlacedMarker } from '../sections/layouts';
 import { appStore, useAppState } from '../store';
@@ -94,8 +95,7 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
         <PanelLeaderTracker target={panel ? activeMarker : undefined} stacked={stacked} />
         <OverlayTracker frame={frame} />
         <World pathT={frame.pathT} quality={quality} />
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[5, 10, 5]} intensity={1.2} />
+        <ZoneVisuals modules={zoneVisuals} pathT={frame.pathT} quality={quality} />
         {SECTION_IDS.map((id) => (
           <SectionAnchor
             key={id}

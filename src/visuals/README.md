@@ -1,9 +1,10 @@
 # Visual modules
 
-The scene has two replaceable slots:
+The scene has three replaceable slots:
 
 - **Section visuals**: one per section, in `src/sections/<id>/`. A section can hold several markers. A marker opens a whole page (Projects has one per project) or one item within a page (Experience has one per role, Publications one per paper). A short item opens as a panel beside its box in the scene; a long write-up opens its page scrolled to it.
-- **Environment**: everything between the sections, in `src/environment/<name>/`.
+- **Environment**: everything between the sections, in `src/environment/<name>/`. Its sky, fog, ground and lights blend between per-zone presets as the camera moves.
+- **Zone visuals**: optional extras for one zone (ground detail, particles and so on), in `src/environment/zone-visuals/<id>/`. They fade in and out with the camera's distance from the zone.
 
 Camera, routing and sound code import only each slot's contract (`contract.ts`) and registry (`registry.ts`). They never import a module's internals. To replace a visual, write a new module that satisfies the contract and point the registry at it.
 
@@ -95,7 +96,7 @@ Additional rules for section visuals:
   - The Experience page still shows both roles, for direct links and the HTML fallback. The Publications page shows only the V-Surveillance write-up: Web Page Linker lives only in its panel, so the HTML fallback must list it itself. Opened by its URL alone, a page with items frames the whole section.
 - A panel's box is framed in half the screen, so it is drawn smaller than a page's. Highlight it on `active` as for a page; the leader line is the scene's, not the visual's.
 - `rowLayout` (`src/sections/row.ts`) lays out a straight row of boxes standing on the floor, one marker each. Give neighbouring boxes different heights so their marker buttons don't overlap on narrow screens.
-- Never attach to the scene itself (`attach="fog"` or `attach="background"`). The environment owns those.
+- Never attach to the scene itself (`attach="fog"` or `attach="background"`), and add no lights. The environment owns those.
 - Don't hide yourself by distance. The scene stops drawing a section once it is beyond the cull distance (`CULL_DISTANCE` in `src/scene/tuning.ts`).
 
 The scene owns world placement (`src/scene/layout.ts`); the visual only owns its local space.
@@ -110,7 +111,8 @@ export interface EnvironmentProps {
 }
 
 export interface EnvironmentModule {
-  /** Renders in world space. Owns the scene background and fog. */
+  /** Renders in world space. Owns the scene background, fog, ground and lights,
+   *  blended between the zone presets (`blendZones` in `zones.ts`) by path position. */
   World: ComponentType<EnvironmentProps>;
   /** Optional: preload anything local (bundled) before first render. */
   preload?: () => Promise<void>;
@@ -119,5 +121,56 @@ export interface EnvironmentModule {
 
 Additional rules for the environment:
 
-- It is the only module that sets the scene background and fog.
+- It is the only module that sets the scene background, fog and lights.
 - It must keep the camera's path and the sections clear. To do that it may import read-only geometry from `src/scene/cameraPath.ts` and `src/scene/layout.ts`. It may import no other scene code, and it never imports a section visual.
+- Take every colour, fog distance and light strength from `blendZones` (`src/environment/zones.ts`) each frame; don't hard-code them. Call it inside `useFrame` with one state object made by `createZoneState`, and copy the values onto existing objects, so a frame allocates nothing.
+
+### Zones (`src/environment/zones.ts`)
+
+The path has six zones: `landing` at t = 0, then each section at its `SECTION_T`. Each has a `ZonePreset` in `ZONE_PRESETS`:
+
+```ts
+export type ZoneId = 'landing' | SectionId;
+
+export interface ZonePreset {
+  sky: { top: string; horizon: string };
+  /** Linear fog, in world units from the camera, at quality 'high'. */
+  fog: { color: string; near: number; far: number };
+  ground: string;
+  ambient: { color: string; intensity: number };
+  sun: { color: string; intensity: number };
+}
+```
+
+- At a zone's own point its preset applies fully. Between two neighbouring zones the environment mixes the two, eased so each preset holds near its point. Before the landing point and past Contact's, the end preset holds.
+- Quality `'low'` uses the same presets with the fog's near and far multiplied by `LOW_FOG_SCALE`.
+- A preset's fog `far` must be within `CULL_DISTANCE` (`src/scene/tuning.ts`) at both qualities, so fog hides a section before the scene stops drawing it. A unit test checks this.
+- Keep the fog colour close to the sky's horizon colour; fully fogged ground meets the sky there.
+
+## Zone visuals (`src/environment/contract.ts`)
+
+```ts
+export interface ZoneVisualProps {
+  /** 1 at the zone's own path point, easing to 0 at its neighbours' points (`zoneWeight`).
+   *  Updated every frame; read `.current` inside useFrame. */
+  presence: FrameValue<number>;
+  quality: Quality;
+}
+
+export interface ZoneVisualModule {
+  id: ZoneId;
+  /** Renders in world space. Not drawn while `presence` is 0. */
+  Visual: ComponentType<ZoneVisualProps>;
+  /** Optional: preload anything local (bundled) before first render. */
+  preload?: () => Promise<void>;
+}
+```
+
+Register each one in `zoneVisuals` in `src/environment/registry.ts`, at most one per zone. A zone without one shows only the blended environment.
+
+Additional rules for zone visuals:
+
+- Fade with `presence`: fully shown at 1, gone at 0. Its neighbours' visuals are fading the other way over the same stretch, so a crossfade needs no extra code.
+- Stay near your zone's stretch of path, between its neighbours' points (`ZONE_T`). The same import limits as the environment apply: read-only geometry from `cameraPath.ts` and `layout.ts`, nothing else from the scene.
+- Keep the camera's path and the sections clear.
+- Never attach to the scene itself and add no lights. The environment owns those.

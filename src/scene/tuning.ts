@@ -42,7 +42,7 @@ export const LANDING_FADE_T = 0.08;
 export const LANDING_STRETCH_T = 0.1;
 
 /** A section is not drawn while its bounding sphere is further than this from the camera.
- *  Matches the grey-box fog's far distance per quality, so a section is culled only once fog hides it. */
+ *  No zone's fog reaches further at that quality (a unit test checks), so a section is culled only once fog hides it. */
 export const CULL_DISTANCE = { high: 45, low: 30 } as const;
 
 /** Vertical field of view in degrees on landscape screens. */

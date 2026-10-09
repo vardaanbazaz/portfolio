@@ -1,14 +1,110 @@
+import { useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { BackSide, type AmbientLight, type Color, type DirectionalLight, type Fog } from 'three';
 import type { EnvironmentModule, EnvironmentProps } from '../contract';
+import { blendZones, createZoneState } from '../zones';
 
-const BACKGROUND = '#0d0d0f';
+/** Radius of the sphere that draws sky and ground. Centred on the origin; the path stays within about 35 of it,
+ *  well inside the camera's far plane. */
+const DOME_RADIUS = 140;
 
-function GreyboxWorld({ quality }: EnvironmentProps) {
+// One sphere around the scene draws both the sky and the floor, so each pixel is filled once (software WebGL, as in
+// headless test browsers, pays for every pixel). Above eye level: the horizon colour easing to the top colour
+// overhead. Below: the floor (y = 0) where that view ray meets it, fading into fog by view depth as three's own
+// fog does, so it matches the grid and the sections. Worked out per vertex; each pixel only interpolates.
+const DOME_VERTEX = /* glsl */ `
+  uniform vec3 top;
+  uniform vec3 horizon;
+  uniform vec3 ground;
+  uniform vec3 fogColor;
+  uniform float fogNear;
+  uniform float fogFar;
+  varying vec3 vColor;
+  void main() {
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vec3 ray = normalize(world.xyz - cameraPosition);
+    vec3 linear;
+    if (ray.y >= 0.0) {
+      linear = mix(horizon, top, pow(ray.y, 0.6));
+    } else {
+      vec3 hit = cameraPosition + ray * (cameraPosition.y / -ray.y);
+      float depth = -(viewMatrix * vec4(hit, 1.0)).z;
+      linear = mix(ground, fogColor, smoothstep(fogNear, fogFar, depth));
+    }
+    // Linear to sRGB output here rather than per pixel.
+    vColor = mix(linear * 12.92, 1.055 * pow(linear, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), linear));
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const DOME_FRAGMENT = /* glsl */ `
+  varying vec3 vColor;
+  void main() {
+    gl_FragColor = vec4(vColor, 1.0);
+  }
+`;
+
+function GreyboxWorld({ pathT, quality }: EnvironmentProps) {
   const low = quality === 'low';
+  const state = useMemo(createZoneState, []);
+  // The colour uniforms are the blended colours themselves, so they need no copying.
+  const uniforms = useMemo(
+    () => ({
+      top: { value: state.skyTop },
+      horizon: { value: state.skyHorizon },
+      ground: { value: state.ground },
+      fogColor: { value: state.fogColor },
+      fogNear: { value: 0 },
+      fogFar: { value: 1 },
+    }),
+    [state],
+  );
+  const background = useRef<Color>(null);
+  const fog = useRef<Fog>(null);
+  const ambient = useRef<AmbientLight>(null);
+  const sun = useRef<DirectionalLight>(null);
+
+  useFrame(() => {
+    blendZones(pathT.current, quality, state);
+    uniforms.fogNear.value = state.fogNear;
+    uniforms.fogFar.value = state.fogFar;
+    background.current?.copy(state.skyHorizon);
+    if (fog.current) {
+      fog.current.color.copy(state.fogColor);
+      fog.current.near = state.fogNear;
+      fog.current.far = state.fogFar;
+    }
+    if (ambient.current) {
+      ambient.current.color.copy(state.ambientColor);
+      ambient.current.intensity = state.ambientIntensity;
+    }
+    if (sun.current) {
+      sun.current.color.copy(state.sunColor);
+      sun.current.intensity = state.sunIntensity;
+    }
+  });
+
   return (
     <>
-      <color attach="background" args={[BACKGROUND]} />
-      <fog attach="fog" args={[BACKGROUND, 6, low ? 30 : 45]} />
+      <color ref={background} attach="background" args={['#000000']} />
+      <fog ref={fog} attach="fog" args={['#000000', 1, 2]} />
+      <mesh renderOrder={-1} frustumCulled={false}>
+        {/* More rings than a sky alone needs: the floor's fog changes quickly near eye level. */}
+        <sphereGeometry args={[DOME_RADIUS, low ? 32 : 48, low ? 24 : 48]} />
+        <shaderMaterial
+          side={BackSide}
+          depthTest={false}
+          depthWrite={false}
+          fog={false}
+          toneMapped={false}
+          uniforms={uniforms}
+          vertexShader={DOME_VERTEX}
+          fragmentShader={DOME_FRAGMENT}
+        />
+      </mesh>
       <gridHelper args={[160, low ? 40 : 160, '#3a3a3f', '#1e1e22']} position={[0, 0, -10]} />
+      <ambientLight ref={ambient} />
+      <directionalLight ref={sun} position={[5, 10, 5]} />
     </>
   );
 }
