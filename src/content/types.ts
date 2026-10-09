@@ -20,6 +20,22 @@ export interface AboutContent {
   links: readonly ExternalLink[];
 }
 
+export interface Role {
+  title: string;
+  org: string;
+  /** Place and work mode, for example "Hyderabad (Hybrid)" or "Remote". */
+  where: string;
+  period: string;
+  points: readonly string[];
+}
+
+export interface ExperienceContent {
+  /** Most recent first. */
+  roles: readonly Role[];
+  /** Muted line at the end of the page: work that is not a role. */
+  also: string;
+}
+
 export interface ContactContent {
   email: string;
   availability: string;

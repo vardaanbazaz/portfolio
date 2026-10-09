@@ -26,11 +26,12 @@ export const SECTION_TITLES: Record<SectionId, string> = {
 };
 
 export const SECTION_LINES: Record<SectionId, string> = {
-  about: 'Placeholder one-liner', // PLACEHOLDER
-  projects: 'Placeholder one-liner', // PLACEHOLDER
-  experience: 'Placeholder one-liner', // PLACEHOLDER
+  about: 'B.Tech in Data Science and Artificial Intelligence', // DECISIONS 7; FACTS 1 Institution and degree
+  // PLACEHOLDER: becomes a line computed from the project pages' statuses once they exist.
+  projects: 'Placeholder one-liner',
+  experience: 'DRDO · AgryBin', // FACTS 2.1 Display line, 2.2 Company name
   publications: 'Two IEEE conference papers (first author, CICT 2025)', // DECISIONS 2 Research line; FACTS 1 "Published IEEE author"
-  contact: 'Placeholder one-liner', // PLACEHOLDER
+  contact: 'Open to remote roles.', // DECISIONS 1; FACTS 1 Target roles
 };
 
 /** Marker labels, page headings and document titles. */

@@ -5,7 +5,7 @@ export const content: AboutContent = {
   education: {
     institution: 'Dr. Shyama Prasad Mukherjee International Institute of Information Technology, Naya Raipur', // DECISIONS 7; FACTS 1 Institution and degree
     degree: 'B.Tech in Data Science and Artificial Intelligence', // DECISIONS 7; FACTS 1 Institution and degree
-    period: '2022–2026 (completed July 2026; convocation pending)', // DECISIONS 7; FACTS 1 Degree period and status
+    period: '2022–2026 (completed July 2026)', // FACTS 1 Degree period and status; matches the professional site
     grade: 'CGPA 7.57 / 10 (80.7%, official conversion)', // DECISIONS 7; FACTS 1 Grade display
     // FACTS 1 Coursework
     coursework: [
