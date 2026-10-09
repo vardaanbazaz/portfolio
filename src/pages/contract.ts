@@ -28,7 +28,8 @@ export const PAGE_IDS: readonly PageId[] = [
 export type ItemId = 'drdo' | 'agrybin' | 'v-surveillance' | 'web-page-linker';
 
 /** Short items: their marker opens a panel beside their box in the scene, and the URL stays as it is.
- *  Every other item is a long write-up, and its marker opens its page scrolled to it. The pages still show every item. */
+ *  Every other item is a long write-up, and its marker opens its page scrolled to it.
+ *  The Experience page still shows its panel items; the Publications page shows only its write-up. */
 export const PANEL_ITEMS = ['drdo', 'agrybin', 'web-page-linker'] as const satisfies readonly ItemId[];
 
 export type PanelItemId = (typeof PANEL_ITEMS)[number];

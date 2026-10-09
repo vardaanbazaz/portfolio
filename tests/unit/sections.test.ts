@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { content as experience } from '../../src/content/pages/experience';
 import { content as publications } from '../../src/content/pages/publications';
 import { ITEM_LABELS, markerLabel, PAGE_LABELS, SECTION_LINES, SECTION_NOTES, SECTION_TITLES } from '../../src/content/scene';
-import { ITEM_PAGE, opensPanel, PAGE_IDS, PAGE_ITEMS, PANEL_ITEMS } from '../../src/pages/contract';
+import { ITEM_PAGE, itemHeadingId, opensPanel, PAGE_IDS, PAGE_ITEMS, PANEL_ITEMS } from '../../src/pages/contract';
+import PublicationsPage from '../../src/pages/PublicationsPage';
 import { citationFor } from '../../src/panels/citationItem';
 import { roleFor } from '../../src/panels/roleItem';
 import { Vector3 } from 'three';
@@ -109,11 +112,28 @@ describe('item headings on the pages', () => {
     experience.roles.forEach((role, i) => expect(role.org.startsWith(ITEM_LABELS[PAGE_ITEMS.experience![i]])).toBe(true));
   });
 
-  it('puts the write-up first and then the citations, in Publications item order', () => {
+  // citationFor finds a citation by its item's position, after the write-up's.
+  it('keeps the write-up first and then the citations, in Publications item order', () => {
     const titles = [publications.writeUp.title, ...publications.citations.map((c) => c.title)];
     expect(titles).toHaveLength(PAGE_ITEMS.publications!.length);
     expect(titles[0].startsWith('V-Surveillance')).toBe(true);
     expect(titles[1]).toContain('Web Page Linker');
+  });
+});
+
+describe('Publications page', () => {
+  const html = renderToStaticMarkup(createElement(PublicationsPage, { headingId: 'title' }));
+
+  it('shows the V-Surveillance write-up, headed for its marker to open at', () => {
+    expect(html).toContain(`id="${itemHeadingId('v-surveillance')}"`);
+    expect(html).toContain(publications.writeUp.title);
+  });
+
+  it('shows no Web Page Linker: it lives only in its panel', () => {
+    const [linker] = publications.citations;
+    expect(html).not.toContain(itemHeadingId('web-page-linker'));
+    expect(html).not.toContain(linker.title);
+    expect(html).not.toContain(linker.doi);
   });
 });
 

@@ -84,7 +84,7 @@ export interface PaperWriteUp extends Citation {
 
 export interface PublicationsContent {
   writeUp: PaperWriteUp;
-  /** Citation and summary only, beneath the write-up. */
+  /** Citation and summary only. Shown in their panels, not on the page. */
   citations: readonly Citation[];
 }
 

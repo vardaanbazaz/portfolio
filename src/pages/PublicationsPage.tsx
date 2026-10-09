@@ -3,13 +3,11 @@ import { content } from '../content/pages/publications';
 import { PAGE_LABELS } from '../content/scene';
 import { UI } from '../ui/strings';
 import { CitationMeta } from './CitationMeta';
-import { itemHeadingId, PAGE_ITEMS, type PageProps } from './contract';
+import { itemHeadingId, type PageProps } from './contract';
 import { copyText, type CopyState } from './copyText';
 
-const ITEMS = PAGE_ITEMS.publications!;
-
 export default function PublicationsPage({ headingId }: PageProps) {
-  const { writeUp, citations } = content;
+  const { writeUp } = content;
   const bibtexRef = useRef<HTMLPreElement>(null);
   const [copy, setCopy] = useState<CopyState>('idle');
 
@@ -21,9 +19,10 @@ export default function PublicationsPage({ headingId }: PageProps) {
         {PAGE_LABELS.publications}
       </h1>
 
-      {/* The write-up, then the citations, are in item order (tested), so each heading gets its item's id for its marker to open at. */}
+      {/* Only the write-up: the citations open as panels in the scene and no page shows them.
+          Its heading gets its item's id for its marker to open at. */}
       <section>
-        <h2 id={itemHeadingId(ITEMS[0])} tabIndex={-1}>
+        <h2 id={itemHeadingId('v-surveillance')} tabIndex={-1}>
           {writeUp.title}
         </h2>
         <p>{writeUp.subtitle}</p>
@@ -108,16 +107,6 @@ export default function PublicationsPage({ headingId }: PageProps) {
           {copy === 'copied' ? UI.copied : copy === 'failed' ? UI.copyBibtexFailed : ''}
         </p>
       </section>
-
-      {citations.map((paper, i) => (
-        <section key={paper.doi}>
-          <h2 id={itemHeadingId(ITEMS[i + 1])} tabIndex={-1}>
-            {paper.title}
-          </h2>
-          <CitationMeta paper={paper} />
-          <p>{paper.summary}</p>
-        </section>
-      ))}
     </article>
   );
 }
