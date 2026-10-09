@@ -33,7 +33,11 @@ export function usePageHead(page: PageId | null) {
       return;
     }
     let current = true;
-    void pageDescriptions[page]().then((text) => current && setDescription(text));
+    // If the content can't be fetched, the page shows that itself; the description just stays as it was.
+    pageDescriptions[page]().then(
+      (text) => current && setDescription(text),
+      () => {},
+    );
     return () => {
       current = false;
     };

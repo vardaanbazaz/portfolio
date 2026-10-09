@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Vector3, type Group } from 'three';
+import { prefetchTarget } from '../preload';
 import { markerKey, type MarkerKey, type MarkerTarget, type SectionId, type SectionMarker } from '../sections/contract';
 import { sectionVisuals } from '../sections/registry';
 import type { FrameValue, Quality } from '../visuals/shared';
@@ -51,10 +52,21 @@ export function SectionAnchor({ id, proximity, quality, active, markerHovered, o
     return markers[nearestMarkerIndex(markers.map((m) => m.box), scratchLocal.x, scratchLocal.z)];
   };
 
+  // Hovering or pressing a box starts fetching what its marker opens, as the marker's button does.
+  useEffect(() => {
+    const hovered = markers.find((m) => markerKey(m) === meshHovered);
+    if (hovered) prefetchTarget(hovered.page, hovered.item);
+  }, [markers, meshHovered]);
+
   const onPointerMove = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
     const key = markerKey(markerAt(e));
     setMeshHovered((cur) => (cur === key ? cur : key));
+  };
+
+  const onPointerDown = (e: ThreeEvent<PointerEvent>) => {
+    const { page, item } = markerAt(e);
+    prefetchTarget(page, item);
   };
 
   return (
@@ -68,6 +80,7 @@ export function SectionAnchor({ id, proximity, quality, active, markerHovered, o
         onOpen({ page, item });
       }}
       onPointerMove={onPointerMove}
+      onPointerDown={onPointerDown}
       onPointerOut={() => setMeshHovered(null)}
     >
       {/* Lift by the half-height so the visual's centred box sits on the floor. */}

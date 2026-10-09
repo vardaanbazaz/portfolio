@@ -4,7 +4,7 @@ import { PAGE_LABELS, SECTION_TITLES } from '../../src/content/scene';
 import { PAGE_IDS } from '../../src/pages/contract';
 import { PAGE_PATHS } from '../../src/routes';
 import { SECTION_IDS } from '../../src/sections/contract';
-import { audioContexts, COUNT_AUDIO_CONTEXTS, expect, test } from './fixtures';
+import { audioContexts, chunkPattern, COUNT_AUDIO_CONTEXTS, expect, PAGE_CHUNKS, PANEL_CHUNKS, test } from './fixtures';
 
 test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
@@ -57,6 +57,23 @@ test('with reduced motion, a direct page link shows that page', async ({ page })
   await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toHaveText('Employee Attrition Analysis');
   await expect(page.locator('meta[name="description"]')).not.toHaveAttribute('content', 'Computer vision · full-stack web · C/DSP systems');
   expect(has3dCode(scripts)).toBe(false);
+});
+
+test('with reduced motion, every page is fetched in the background, and following a link makes no new request', async ({ page }) => {
+  const requested: string[] = [];
+  page.on('request', (request) => requested.push(request.url()));
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1, name: 'Vardaan' })).toBeVisible();
+  const fetched = (names: string[]) => names.filter((name) => requested.some((url) => chunkPattern(name).test(url)));
+  await expect.poll(() => fetched(PAGE_CHUNKS)).toEqual(PAGE_CHUNKS);
+  // The HTML site has no panels.
+  expect(fetched(PANEL_CHUNKS)).toEqual([]);
+  await page.waitForLoadState('networkidle');
+
+  requested.length = 0;
+  await page.locator(`a[href="${PAGE_PATHS.contact}"]`).click();
+  await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toHaveText(PAGE_LABELS.contact);
+  expect(requested).toEqual([]);
 });
 
 test('the scene build does contain the 3D code this check looks for', async ({ browser }) => {

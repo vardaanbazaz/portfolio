@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { markerLabel, PAGE_LABELS } from '../content/scene';
 import { opensPanel } from '../pages/contract';
+import { prefetchTarget } from '../preload';
 import { markerKey, type MarkerTarget } from '../sections/contract';
 import { UI } from '../ui/strings';
 import { registerMarker } from './markerRegistry';
@@ -17,6 +18,8 @@ export function Marker({ target, onOpen, onHoverChange }: MarkerProps) {
   const ref = useCallback((el: HTMLButtonElement | null) => registerMarker(key, el), [key]);
   const label = markerLabel(target);
   const panel = opensPanel(target.item);
+  // Hover, focus and a press (a touch has no hover) start fetching what the marker opens, ahead of the click.
+  const prefetch = () => prefetchTarget(target.page, target.item);
 
   return (
     <button
@@ -27,9 +30,16 @@ export function Marker({ target, onOpen, onHoverChange }: MarkerProps) {
       aria-label={target.item && !panel ? UI.openItem(label, PAGE_LABELS[target.page]) : UI.openPage(label)}
       aria-haspopup={panel ? 'dialog' : undefined}
       onClick={() => onOpen(target)}
-      onPointerEnter={() => onHoverChange(true)}
+      onPointerEnter={() => {
+        prefetch();
+        onHoverChange(true);
+      }}
       onPointerLeave={() => onHoverChange(false)}
-      onFocus={() => onHoverChange(true)}
+      onPointerDown={prefetch}
+      onFocus={() => {
+        prefetch();
+        onHoverChange(true);
+      }}
       onBlur={() => onHoverChange(false)}
     >
       {label}

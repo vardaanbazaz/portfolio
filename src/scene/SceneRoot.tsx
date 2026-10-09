@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
 import { LANDING, SECTION_LINES, SECTION_NOTES, SECTION_TITLES } from '../content/scene';
 import { environment } from '../environment/registry';
+import { preloadAll } from '../preload';
 import { SECTION_IDS } from '../sections/contract';
 import { MARKERS, markerAt, type PlacedMarker } from '../sections/layouts';
 import { appStore, useAppState } from '../store';
@@ -20,6 +21,17 @@ import { SectionAnchor, type SectionHandlers } from './SectionAnchor';
 import { BASE_FOV, DPR_LOW, DPR_RANGE, NARROW_VIEWPORT_PX, PERF_DECLINE_BELOW_FPS } from './tuning';
 
 const initialQuality = (): Quality => (window.innerWidth < NARROW_VIEWPORT_PX ? 'low' : 'high');
+
+/** Once the scene has drawn its first frame, fetches every page and panel in the background. */
+function PreloadAfterFirstFrame() {
+  const done = useRef(false);
+  useFrame(() => {
+    if (done.current) return;
+    done.current = true;
+    preloadAll();
+  });
+  return null;
+}
 
 /** The one persistent canvas: environment, sections and the camera rig, with the landing text,
  *  section captions and marker buttons over it. It never unmounts while pages and panels come and go. */
@@ -68,6 +80,7 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
           gl.domElement.addEventListener('webglcontextlost', onContextLost);
         }}
       >
+        <PreloadAfterFirstFrame />
         <PerformanceMonitor bounds={() => [PERF_DECLINE_BELOW_FPS, Infinity]} onDecline={onDecline} />
         <CameraRig
           frame={frame}

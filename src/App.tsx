@@ -3,9 +3,8 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from
 import { AnimatePresence } from 'motion/react';
 import { opensPanel, PAGE_IDS } from './pages/contract';
 import { PageView } from './pages/PageView';
-import { pageLoaders } from './pages/registry';
 import { PanelView } from './panels/PanelView';
-import { panelLoaders } from './panels/registry';
+import { prefetchTarget } from './preload';
 import {
   itemForState,
   itemState,
@@ -141,11 +140,11 @@ function AppShell({ bootT, onContextLost }: AppProps) {
     if (phase === 'flyingOut') return sound.play('out');
   }, [phase]);
 
-  // Start fetching the page's or panel's chunk as the fly-in starts, so it is usually ready when the fade begins.
+  // Start fetching the page's or panel's chunk as the fly-in starts at the latest (hovering, focusing or pressing its
+  // marker usually started it already), so it is ready when the fade begins.
   useEffect(() => {
     if (phase !== 'flyingIn' || !page) return;
-    if (panel && opensPanel(item)) void panelLoaders[item]();
-    else void pageLoaders[page]();
+    prefetchTarget(page, panel ? item : null);
   }, [phase, page, item, panel]);
 
   useEffect(() => {

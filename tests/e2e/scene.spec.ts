@@ -1,5 +1,4 @@
 import type { Page } from '@playwright/test';
-import { content as datavista } from '../../src/content/pages/datavista';
 import { SECTION_TITLES } from '../../src/content/scene';
 import { PAGE_PATHS } from '../../src/routes';
 import { SECTION_IDS, type SectionId } from '../../src/sections/contract';
@@ -137,20 +136,6 @@ test('the FPS readout loads only with ?fps', async ({ page }) => {
   await page.goto('/?fps');
   await waitForScene(page);
   await expect.poll(() => requested.some((url) => url.includes('FpsReadout'))).toBe(true);
-});
-
-test("a page's code is not requested before it opens", async ({ page }) => {
-  const bodies: string[] = [];
-  page.on('response', async (response) => {
-    if (response.url().endsWith('.js')) bodies.push(await response.text().catch(() => ''));
-  });
-  await scrollToSection(page, 'projects');
-  // The scene has loaded and settled at Projects; DataVista's content is still nowhere in what was fetched.
-  const hasSummary = () => bodies.some((body) => body.includes(datavista.summary.slice(0, 60)));
-  expect(hasSummary()).toBe(false);
-  await marker(page, 'DataVista').click();
-  await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toHaveText('DataVista');
-  expect(hasSummary()).toBe(true);
 });
 
 test('no AudioContext exists before the first press', async ({ page }) => {

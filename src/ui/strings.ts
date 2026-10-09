@@ -10,6 +10,8 @@ export const UI = {
   menu: 'Menu',
   menuLabel: 'Sections',
   loading: 'Loading',
+  loadFailed: "Couldn't load this page.",
+  tryAgain: 'Try again',
   pageTitle: (label: string) => `${label} · ${SITE_NAME}`,
   education: 'Education',
   coursework: 'Coursework',

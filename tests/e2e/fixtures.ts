@@ -58,6 +58,23 @@ export async function expectExploring(page: Page) {
   await expect(page.locator('.scene')).not.toHaveAttribute('inert');
 }
 
+/** The page and panel chunks, by the module name Vite gives each (see `src/pages/registry.ts`, `src/panels/registry.ts`). */
+export const PAGE_CHUNKS = [
+  'AboutPage',
+  'DataVistaPage',
+  'NeuroInsightPage',
+  'AttritionPage',
+  'KanbanLightPage',
+  'IngesterPage',
+  'ExperiencePage',
+  'PublicationsPage',
+  'ContactPage',
+];
+export const PANEL_CHUNKS = ['RolePanel', 'CitationPanel'];
+
+/** A chunk's file, with or without the query a retry adds. */
+export const chunkPattern = (name: string) => new RegExp(`/assets/${name}-[\\w-]+\\.js(\\?.*)?$`);
+
 /** The scene's canvas has loaded and drawn. */
 export async function waitForScene(page: Page) {
   await expect(page.locator('.scene canvas')).toBeAttached({ timeout: 20_000 });

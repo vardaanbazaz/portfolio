@@ -1,13 +1,15 @@
-import { Suspense, useEffect } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router';
 import { LANDING, PAGE_LABELS, SECTION_LINES, SECTION_NOTES, SECTION_TITLES } from '../content/scene';
 import { CitationMeta } from '../pages/CitationMeta';
 import { PAGE_IDS, type PageId } from '../pages/contract';
 import { pages } from '../pages/registry';
 import { citationFor } from '../panels/citationItem';
+import { preloadPages } from '../preload';
 import { PAGE_PATHS, pageForPath, sectionForHash, sectionHash } from '../routes';
 import { SECTION_IDS } from '../sections/contract';
 import { PAGE_SECTION } from '../sections/layouts';
+import { ChunkView } from '../ui/ChunkView';
 import { usePageHead } from '../ui/pageHead';
 import { UI } from '../ui/strings';
 
@@ -72,7 +74,6 @@ export function FallbackHome() {
 }
 
 function FallbackPage({ page }: { page: PageId }) {
-  const Page = pages[page];
   const headingId = `page-title-${page}`;
   return (
     <main className="page page-static" aria-labelledby={headingId}>
@@ -80,15 +81,7 @@ function FallbackPage({ page }: { page: PageId }) {
         {UI.back}
       </Link>
       <div className="page-column">
-        <Suspense
-          fallback={
-            <p className="page-loading" role="status">
-              {UI.loading}
-            </p>
-          }
-        >
-          <Page headingId={headingId} />
-        </Suspense>
+        <ChunkView chunk={pages[page]} props={{ headingId }} />
       </div>
     </main>
   );
@@ -98,6 +91,9 @@ function FallbackPage({ page }: { page: PageId }) {
 function FallbackShell() {
   const { pathname, hash } = useLocation();
   usePageHead(pageForPath(pathname));
+
+  // Once the first view has rendered, fetch every page in the background, so following a link doesn't wait.
+  useEffect(preloadPages, []);
 
   useEffect(() => {
     const section = sectionForHash(hash);

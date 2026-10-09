@@ -1,16 +1,12 @@
-import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
-import { PANEL_ITEMS, type PanelItemId, type PanelProps } from '../pages/contract';
+import type { PanelItemId, PanelProps } from '../pages/contract';
+import { lazyChunk, type LazyChunk } from '../ui/chunk';
 
-type PanelModule = { default: ComponentType<PanelProps> };
+const rolePanel = lazyChunk<PanelProps>(() => import('./RolePanel'));
 
-/** Each panel and its content are their own chunk, fetched the first time a panel of that kind opens. */
-export const panelLoaders: Record<PanelItemId, () => Promise<PanelModule>> = {
-  drdo: () => import('./RolePanel'),
-  agrybin: () => import('./RolePanel'),
-  'web-page-linker': () => import('./CitationPanel'),
+/** Each kind of panel and its content are their own chunk, kept out of the first download and fetched like a page's
+ *  (see `src/preload.ts`). */
+export const panels: Record<PanelItemId, LazyChunk<PanelProps>> = {
+  drdo: rolePanel,
+  agrybin: rolePanel,
+  'web-page-linker': lazyChunk(() => import('./CitationPanel')),
 };
-
-export const panels = Object.fromEntries(PANEL_ITEMS.map((id) => [id, lazy(panelLoaders[id])])) as Record<
-  PanelItemId,
-  LazyExoticComponent<ComponentType<PanelProps>>
->;

@@ -1,8 +1,9 @@
-import { Suspense, useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { panelHeadingId, type PanelItemId } from '../pages/contract';
 import { registerLeader, registerPanel } from '../scene/panelRegistry';
 import { PAGE_FADE_SECONDS } from '../scene/tuning';
+import { ChunkView } from '../ui/ChunkView';
 import { UI } from '../ui/strings';
 import { panels } from './registry';
 
@@ -30,7 +31,6 @@ function FocusHeading({ id }: { id: string }) {
  */
 export function PanelView({ item, onClose }: PanelViewProps) {
   const panel = useRef<HTMLElement>(null);
-  const Panel = panels[item];
   const headingId = panelHeadingId(item);
 
   const panelRef = useCallback((el: HTMLElement | null) => {
@@ -71,16 +71,7 @@ export function PanelView({ item, onClose }: PanelViewProps) {
         <button type="button" className="panel-close" onClick={onClose}>
           {UI.close}
         </button>
-        <Suspense
-          fallback={
-            <p className="page-loading" role="status">
-              {UI.loading}
-            </p>
-          }
-        >
-          <Panel item={item} headingId={headingId} />
-          <FocusHeading id={headingId} />
-        </Suspense>
+        <ChunkView chunk={panels[item]} props={{ item, headingId }} after={<FocusHeading id={headingId} />} />
       </section>
     </motion.div>
   );

@@ -1,6 +1,7 @@
-import { Suspense, useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import { motion } from 'motion/react';
 import { PAGE_FADE_SECONDS } from '../scene/tuning';
+import { ChunkView } from '../ui/ChunkView';
 import { UI } from '../ui/strings';
 import { itemHeadingId, type ItemId, type PageId } from './contract';
 import { pages } from './registry';
@@ -31,10 +32,9 @@ function FocusHeading({ root, item }: { root: RefObject<HTMLElement | null>; ite
 }
 
 /** A page: an opaque full-viewport view that scrolls on its own, so reading never moves the scene.
- *  The page's code and content load the first time it opens. */
+ *  The page's code and content are usually fetched already (see `src/preload.ts`); if not, they load now. */
 export function PageView({ page, item, onBack, onShown }: PageViewProps) {
   const root = useRef<HTMLElement>(null);
-  const Page = pages[page];
   const headingId = `page-title-${page}`;
 
   useEffect(() => {
@@ -61,16 +61,7 @@ export function PageView({ page, item, onBack, onShown }: PageViewProps) {
         {UI.back}
       </button>
       <div className="page-column">
-        <Suspense
-          fallback={
-            <p className="page-loading" role="status">
-              {UI.loading}
-            </p>
-          }
-        >
-          <Page headingId={headingId} />
-          <FocusHeading root={root} item={item} />
-        </Suspense>
+        <ChunkView chunk={pages[page]} props={{ headingId }} after={<FocusHeading root={root} item={item} />} />
       </div>
     </motion.main>
   );
