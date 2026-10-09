@@ -42,8 +42,8 @@ export const PERF_DECLINE_BELOW_FPS = 45;
 /** Seconds for the camera to fly from the path to a stop's inspect pose (and back). */
 export const FLY_SECONDS = 0.8;
 
-/** Seconds for a page overlay to fade in or out. */
-export const OVERLAY_SECONDS = 0.25;
+/** Seconds for the view to fade between the scene and a page. */
+export const PAGE_FADE_SECONDS = 0.25;
 
 /** Inspect pose: distance multiplier on the fit-to-frame distance, and how far above level the camera sits (0 = level). */
 export const INSPECT_MARGIN = 1.35;

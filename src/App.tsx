@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { AnimatePresence } from 'motion/react';
-import { PageOverlay } from './pages/PageOverlay';
+import { PageView } from './pages/PageView';
 import { STOP_PATHS, stopForPath } from './routes';
 import { STOP_T } from './scene/cameraPath';
 import { focusMarker } from './scene/markerRegistry';
@@ -41,7 +41,7 @@ function useScrollLock(locked: boolean, bootStop: StopId | null) {
 }
 
 function AppShell({ bootStop }: { bootStop: StopId | null }) {
-  const { phase, stop, route, returnFocus } = useAppState();
+  const { phase, stop, route, returnFocus, sceneHidden } = useAppState();
   const location = useLocation();
   const navigate = useNavigate();
   const closeRequested = useRef(false);
@@ -83,11 +83,12 @@ function AppShell({ bootStop }: { bootStop: StopId | null }) {
     else navigate(-1);
   }, [location.key, navigate]);
 
-  const onOverlayGone = useCallback(() => appStore.dispatch({ type: 'overlayClosed' }), []);
+  const onPageShown = useCallback(() => appStore.dispatch({ type: 'pageShown' }), []);
+  const onPageGone = useCallback(() => appStore.dispatch({ type: 'pageHidden' }), []);
 
   return (
     <>
-      <SceneRoot onOpen={openStop} />
+      <SceneRoot onOpen={openStop} hidden={sceneHidden} />
       <div className="scroll-spacer" style={{ '--pages': SCROLL_PAGES } as CSSProperties} />
       <Routes>
         <Route path="/" element={null} />
@@ -97,8 +98,10 @@ function AppShell({ bootStop }: { bootStop: StopId | null }) {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {/* initial={false}: a direct load shows its page at once, with no fade or fly-in. */}
-      <AnimatePresence initial={false} onExitComplete={onOverlayGone}>
-        {phase === 'pageOpen' && stop && <PageOverlay key={stop} stop={stop} onClose={closePage} />}
+      <AnimatePresence initial={false} onExitComplete={onPageGone}>
+        {phase === 'pageOpen' && stop && (
+          <PageView key={stop} stop={stop} onBack={closePage} onShown={onPageShown} />
+        )}
       </AnimatePresence>
       <MuteToggle />
       {showFps && (

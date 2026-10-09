@@ -3,7 +3,7 @@ import type { StopId } from './stops/contract';
 
 /**
  * exploring ⇄ flyingIn → pageOpen → closing → flyingOut → exploring
- * `closing` is the overlay animating out; the camera starts flying out once it has gone.
+ * The page fades in once the camera arrives (`pageOpen`) and fades out before it leaves (`closing`).
  */
 export type Phase = 'exploring' | 'flyingIn' | 'pageOpen' | 'closing' | 'flyingOut';
 
@@ -15,6 +15,8 @@ export interface AppState {
   route: StopId | null;
   /** Stop whose marker gets focus back once the camera has returned to the path. */
   returnFocus: StopId | null;
+  /** The opaque page has fully faded in, so the canvas is hidden. Only ever true while `pageOpen`. */
+  sceneHidden: boolean;
 }
 
 export type AppEvent =
@@ -23,17 +25,21 @@ export type AppEvent =
   /** The URL changed (marker click, close, Back or Forward). */
   | { type: 'route'; route: StopId | null }
   | { type: 'flyInDone' }
-  | { type: 'overlayClosed' }
+  /** The page finished fading in. */
+  | { type: 'pageShown' }
+  /** The page finished fading out. */
+  | { type: 'pageHidden' }
   | { type: 'flyOutDone' };
 
-export const INITIAL_STATE: AppState = { phase: 'exploring', stop: null, route: null, returnFocus: null };
+export const INITIAL_STATE: AppState = { phase: 'exploring', stop: null, route: null, returnFocus: null, sceneHidden: false };
 
 /** Pure transition function. Returns the same object when nothing changes. */
 export function reduce(state: AppState, event: AppEvent): AppState {
   switch (event.type) {
     case 'boot':
       return event.route
-        ? { phase: 'pageOpen', stop: event.route, route: event.route, returnFocus: null }
+        ? // Direct load: the page is shown at once, with no fly-in or fade.
+          { phase: 'pageOpen', stop: event.route, route: event.route, returnFocus: null, sceneHidden: true }
         : INITIAL_STATE;
 
     case 'route': {
@@ -47,7 +53,7 @@ export function reduce(state: AppState, event: AppEvent): AppState {
         case 'flyingIn':
           return route === state.stop ? next : { ...next, phase: 'flyingOut' };
         case 'pageOpen':
-          return route === state.stop ? next : { ...next, phase: 'closing' };
+          return route === state.stop ? next : { ...next, phase: 'closing', sceneHidden: false };
         case 'closing':
           return route === state.stop ? { ...next, phase: 'pageOpen' } : next;
         case 'flyingOut':
@@ -59,7 +65,10 @@ export function reduce(state: AppState, event: AppEvent): AppState {
     case 'flyInDone':
       return state.phase === 'flyingIn' ? { ...state, phase: 'pageOpen' } : state;
 
-    case 'overlayClosed':
+    case 'pageShown':
+      return state.phase === 'pageOpen' && !state.sceneHidden ? { ...state, sceneHidden: true } : state;
+
+    case 'pageHidden':
       return state.phase === 'closing' ? { ...state, phase: 'flyingOut' } : state;
 
     case 'flyOutDone':

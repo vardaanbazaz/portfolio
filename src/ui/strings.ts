@@ -11,7 +11,7 @@ export const STOP_LABELS: Record<StopId, string> = {
 
 export const UI = {
   openStop: (label: string) => `Open ${label}`,
-  close: 'Close',
+  back: 'Back',
   placeholder: 'Placeholder',
   mute: 'Mute',
   pageTitle: (label: string) => `${label} · ${SITE_NAME}`,

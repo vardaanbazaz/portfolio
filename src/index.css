@@ -47,7 +47,7 @@ h1:focus-visible {
   outline-offset: 2px;
 }
 
-/* Own stacking context, so nothing in the scene layer can rise above the overlay and controls. */
+/* Own stacking context, so nothing in the scene layer can rise above the page and controls. */
 .scene {
   position: fixed;
   inset: 0;
@@ -70,44 +70,34 @@ h1:focus-visible {
   background: rgb(20 20 23 / 0.8);
 }
 
-.overlay {
+.scene-hidden {
+  visibility: hidden;
+}
+
+/* A stop's page: opaque, full viewport, its own scroll container. */
+.page {
   position: fixed;
   inset: 0;
   z-index: 10;
-  display: grid;
-  place-items: center;
-  background: rgb(0 0 0 / 0.55);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
   cursor: auto;
 }
 
-.overlay-panel {
+.page-back {
+  position: sticky;
+  top: 16px;
+  left: 16px;
+  z-index: 1;
+  margin: 16px 0 0 16px;
+}
+
+.page-column {
   box-sizing: border-box;
-  width: min(880px, 100% - 64px);
-  height: calc(100svh - 64px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 24px 32px 48px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-}
-
-.overlay-close {
-  float: right;
-}
-
-.overlay-panel h1 {
-  margin-top: 0;
-}
-
-@media (max-width: 767px) {
-  .overlay-panel {
-    width: 100%;
-    height: 100%;
-    border: 0;
-    border-radius: 0;
-    padding: 16px 16px 48px;
-  }
+  max-width: 68ch;
+  margin: 0 auto;
+  padding: 24px 16px 96px;
 }
 
 .mute-toggle {

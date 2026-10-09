@@ -2,7 +2,7 @@ import type { StopId } from '../stops/contract';
 import { STOP_LABELS, UI } from '../ui/strings';
 
 export interface PageProps {
-  /** id for the page's h1, which labels the dialog. */
+  /** id for the page's h1, which labels the main landmark. */
   headingId: string;
 }
 

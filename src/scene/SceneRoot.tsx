@@ -16,7 +16,12 @@ import { BASE_FOV, DPR_LOW, DPR_RANGE, NARROW_VIEWPORT_PX, PERF_DECLINE_BELOW_FP
 const initialQuality = (): Quality => (window.innerWidth < NARROW_VIEWPORT_PX ? 'low' : 'high');
 
 /** The one persistent canvas: environment, stops and the camera rig. It never unmounts while pages come and go. */
-export function SceneRoot({ onOpen }: StopHandlers) {
+interface SceneRootProps extends StopHandlers {
+  /** An opaque page fully covers the scene. */
+  hidden: boolean;
+}
+
+export function SceneRoot({ onOpen, hidden }: SceneRootProps) {
   const { phase, stop } = useAppState();
   const [startQuality] = useState(initialQuality);
   const [quality, setQuality] = useState<Quality>(startQuality);
@@ -36,7 +41,8 @@ export function SceneRoot({ onOpen }: StopHandlers) {
 
   return (
     // Inert unless exploring: markers can't be focused or clicked during a flight or under a page.
-    <div className="scene" inert={phase !== 'exploring'}>
+    // Hidden with visibility, not display, so the canvas keeps its size and nothing reflows on return.
+    <div className={hidden ? 'scene scene-hidden' : 'scene'} inert={phase !== 'exploring'}>
       <Canvas
         dpr={dpr}
         // The opaque page covers the scene, so stop drawing while it is open.

@@ -11,12 +11,13 @@ describe('boot', () => {
     expect(INITIAL_STATE.phase).toBe('exploring');
   });
 
-  it('opens the page straight away on a direct load, with no fly-in', () => {
+  it('opens the page straight away on a direct load, with no fly-in or fade, and the scene hidden', () => {
     expect(run([boot('publications')])).toEqual({
       phase: 'pageOpen',
       stop: 'publications',
       route: 'publications',
       returnFocus: null,
+      sceneHidden: true,
     });
   });
 });
@@ -29,7 +30,7 @@ describe('open and close', () => {
       route('datavista'),
       { type: 'flyInDone' },
       route(null),
-      { type: 'overlayClosed' },
+      { type: 'pageHidden' },
       { type: 'flyOutDone' },
     ].reduce<AppState[]>((acc, e) => [...acc, reduce(acc[acc.length - 1], e as AppEvent)], [exploring]);
     expect(states.map((s) => s.phase)).toEqual([
@@ -45,7 +46,7 @@ describe('open and close', () => {
   });
 
   it('closes a direct-loaded page through the normal fly-out', () => {
-    const s = run([route(null), { type: 'overlayClosed' }, { type: 'flyOutDone' }], run([boot('experience')]));
+    const s = run([route(null), { type: 'pageHidden' }, { type: 'flyOutDone' }], run([boot('experience')]));
     expect(s).toMatchObject({ phase: 'exploring', stop: null, returnFocus: 'experience' });
   });
 });
@@ -64,7 +65,7 @@ describe('route changes mid-flight', () => {
     });
   });
 
-  it('Forward while the overlay fades out reopens the page', () => {
+  it('Forward while the page fades out reopens it', () => {
     const closing = run([{ type: 'flyInDone' }, route(null)], flyingIn);
     expect(closing.phase).toBe('closing');
     expect(run([route('publications')], closing).phase).toBe('pageOpen');
@@ -77,12 +78,42 @@ describe('route changes mid-flight', () => {
   });
 });
 
+describe('scene hiding', () => {
+  const pageOpen = run([boot(null), route('datavista'), { type: 'flyInDone' }]);
+
+  it('keeps the scene visible while the page fades in, and hides it once the fade is done', () => {
+    expect(pageOpen.sceneHidden).toBe(false);
+    expect(run([{ type: 'pageShown' }], pageOpen).sceneHidden).toBe(true);
+  });
+
+  it('shows the scene again as soon as the page starts fading out', () => {
+    const closing = run([{ type: 'pageShown' }, route(null)], pageOpen);
+    expect(closing).toMatchObject({ phase: 'closing', sceneHidden: false });
+  });
+
+  it('shows the scene when a direct-loaded page closes', () => {
+    expect(run([route(null)], run([boot('experience')]))).toMatchObject({ phase: 'closing', sceneHidden: false });
+  });
+
+  it('waits for a fresh fade-in when Forward reopens a page mid-fade-out', () => {
+    const reopened = run([{ type: 'pageShown' }, route(null), route('datavista')], pageOpen);
+    expect(reopened).toMatchObject({ phase: 'pageOpen', sceneHidden: false });
+    expect(run([{ type: 'pageShown' }], reopened).sceneHidden).toBe(true);
+  });
+
+  it('ignores a late fade-in event once the page is closing', () => {
+    const closing = run([route(null)], pageOpen);
+    expect(reduce(closing, { type: 'pageShown' })).toBe(closing);
+  });
+});
+
 describe('ignored events', () => {
   it('returns the same state object when nothing changes', () => {
     const s = run([boot(null)]);
     for (const e of [
       { type: 'flyInDone' },
-      { type: 'overlayClosed' },
+      { type: 'pageShown' },
+      { type: 'pageHidden' },
       { type: 'flyOutDone' },
       route(null),
     ] as AppEvent[]) {
