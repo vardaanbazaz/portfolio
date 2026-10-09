@@ -32,8 +32,60 @@ export interface Role {
 export interface ExperienceContent {
   /** Most recent first. */
   roles: readonly Role[];
-  /** Muted line at the end of the page: work that is not a role. */
+  /** Line at the end of the page: work that is not a role. */
   also: string;
+}
+
+export interface Citation {
+  title: string;
+  venue: string;
+  date: string;
+  authors: readonly string[];
+  authorRole: string;
+  doi: string;
+  xploreUrl: string;
+  contribution: string;
+}
+
+export interface PipelineStage {
+  step: string;
+  title: string;
+  description: string;
+}
+
+export interface ResultRow {
+  dataset: string;
+  description: string;
+  precision: string;
+  recall: string;
+  map50: string;
+  map5095: string;
+}
+
+/** A paper with its full write-up on this site. */
+export interface PaperWriteUp extends Citation {
+  subtitle: string;
+  pills: readonly string[];
+  summary: string;
+  pipeline: readonly PipelineStage[];
+  results: {
+    formula: string;
+    rows: readonly ResultRow[];
+    training: string;
+  };
+  adr: {
+    title: string;
+    context: string;
+    decision: string;
+    consequences: string;
+  };
+  bibtex: string;
+}
+
+export interface PublicationsContent {
+  writeUp: PaperWriteUp;
+  /** Citation and contribution line only, beneath the write-up. */
+  citations: readonly Citation[];
 }
 
 export interface ContactContent {

@@ -24,7 +24,7 @@ export default function ExperiencePage({ headingId }: PageProps) {
         </section>
       ))}
 
-      <p className="muted">{content.also}</p>
+      <p>{content.also}</p>
     </article>
   );
 }

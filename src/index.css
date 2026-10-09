@@ -215,6 +215,96 @@ h1:focus-visible {
   min-height: 1.5em;
 }
 
+.copy-status {
+  min-height: 1.5em;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.875rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.pipeline {
+  padding-left: 0;
+  list-style: none;
+}
+
+.pipeline li + li {
+  margin-top: 16px;
+}
+
+.pipeline p {
+  margin: 0;
+}
+
+/* Wide tables scroll sideways inside the page column instead of widening the page. */
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.table-scroll:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.table-scroll table {
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.table-scroll th,
+.table-scroll td {
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+
+.table-scroll tbody tr:last-child > * {
+  border-bottom: none;
+}
+
+.table-scroll .number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.page code,
+.bibtex {
+  overflow-wrap: anywhere;
+}
+
+.bibtex {
+  padding: 12px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  font-size: 0.8125rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.page dt {
+  font-weight: bold;
+}
+
+.page dd {
+  margin: 0 0 8px;
+}
+
 /* Top right, above pages. */
 .menu {
   position: fixed;

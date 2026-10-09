@@ -3,34 +3,14 @@ import { content } from '../content/pages/contact';
 import { PAGE_LABELS } from '../content/scene';
 import { UI } from '../ui/strings';
 import type { PageProps } from './contract';
+import { copyText, type CopyState } from './copyText';
 import { LinkList } from './LinkList';
-
-type CopyState = 'idle' | 'copied' | 'failed';
-
-/** Selects the address so it can be copied by hand when the clipboard API is missing or refused. */
-function selectText(node: HTMLElement) {
-  const selection = window.getSelection();
-  if (!selection) return;
-  const range = document.createRange();
-  range.selectNodeContents(node);
-  selection.removeAllRanges();
-  selection.addRange(range);
-}
 
 export default function ContactPage({ headingId }: PageProps) {
   const emailRef = useRef<HTMLParagraphElement>(null);
   const [copy, setCopy] = useState<CopyState>('idle');
 
-  const onCopy = async () => {
-    try {
-      if (!navigator.clipboard) throw new Error('Clipboard API unavailable');
-      await navigator.clipboard.writeText(content.email);
-      setCopy('copied');
-    } catch {
-      if (emailRef.current) selectText(emailRef.current);
-      setCopy('failed');
-    }
-  };
+  const onCopy = async () => setCopy(await copyText(content.email, emailRef.current));
 
   return (
     <article>
