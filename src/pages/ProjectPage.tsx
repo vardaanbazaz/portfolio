@@ -105,7 +105,7 @@ export function ProjectPage({ headingId, page, content }: ProjectPageProps) {
       </p>
       {content.figures && <Figures items={content.figures} />}
       <p>{content.summary}</p>
-      <LinkList links={[content.source]} />
+      <LinkList links={content.demo ? [content.source, content.demo] : [content.source]} />
       <ul className="pills">
         {content.pills.map((pill) => (
           <li key={pill} className="pill">

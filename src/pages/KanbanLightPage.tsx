@@ -1,7 +1,7 @@
 import { content } from '../content/pages/kanbanlight';
 import type { PageProps } from './contract';
-import { PlaceholderPage } from './PlaceholderPage';
+import { ProjectPage } from './ProjectPage';
 
 export default function KanbanLightPage(props: PageProps) {
-  return <PlaceholderPage {...props} page="kanbanlight" content={content} />;
+  return <ProjectPage {...props} page="kanbanlight" content={content} />;
 }

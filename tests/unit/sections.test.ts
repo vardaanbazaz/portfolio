@@ -4,6 +4,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { content as attrition } from '../../src/content/pages/attrition';
 import { content as datavista } from '../../src/content/pages/datavista';
 import { content as experience } from '../../src/content/pages/experience';
+import { content as kanbanlight } from '../../src/content/pages/kanbanlight';
+import { content as ingester } from '../../src/content/pages/unified-api-ingester';
 import { content as neuroinsight } from '../../src/content/pages/neuroinsight-ai';
 import { content as publications } from '../../src/content/pages/publications';
 import {
@@ -19,6 +21,8 @@ import {
 import { ITEM_PAGE, itemHeadingId, opensPanel, PAGE_IDS, PAGE_ITEMS, PANEL_ITEMS } from '../../src/pages/contract';
 import AttritionPage from '../../src/pages/AttritionPage';
 import DataVistaPage from '../../src/pages/DataVistaPage';
+import IngesterPage from '../../src/pages/IngesterPage';
+import KanbanLightPage from '../../src/pages/KanbanLightPage';
 import NeuroInsightPage from '../../src/pages/NeuroInsightPage';
 import PublicationsPage from '../../src/pages/PublicationsPage';
 import { citationFor } from '../../src/panels/citationItem';
@@ -166,7 +170,12 @@ const projectPages = [
   { name: 'DataVista', page: 'datavista', Page: DataVistaPage, content: datavista },
   { name: 'NeuroInsight-AI', page: 'neuroinsight-ai', Page: NeuroInsightPage, content: neuroinsight },
   { name: 'Employee Attrition Analysis', page: 'attrition', Page: AttritionPage, content: attrition },
+  { name: 'KanbanLight', page: 'kanbanlight', Page: KanbanLightPage, content: kanbanlight },
+  { name: 'Unified API Ingester', page: 'unified-api-ingester', Page: IngesterPage, content: ingester },
 ] as const;
+
+/** The live pages of the two projects in development have no design decisions. */
+const withoutDecisions: readonly string[] = ['kanbanlight', 'unified-api-ingester'];
 
 for (const { name, page, Page, content } of projectPages) {
   describe(`${name} page`, () => {
@@ -190,7 +199,9 @@ for (const { name, page, Page, content } of projectPages) {
     it('shows no ID code, category label or decision badge', () => {
       // ID codes such as the old record and page codes: capitals, a hyphen, digits.
       expect(html).not.toMatch(/\b[A-Z]{2,}-\d{3,}\b/);
-      for (const text of ['MANUSCRIPT', 'CATEGORY', 'Feature Build', 'ACCEPTED']) expect(html).not.toContain(text);
+      for (const text of ['MANUSCRIPT', 'CATEGORY', 'Feature Build', 'Active Build', 'Pipeline Engine', 'ACCEPTED']) {
+        expect(html).not.toContain(text);
+      }
     });
 
     it('gives its section headings and contents entries no numbers', () => {
@@ -200,13 +211,75 @@ for (const { name, page, Page, content } of projectPages) {
       }
     });
 
-    it('labels each design decision Problem, Decision and Result', () => {
-      const decisions = content.sections.flatMap((s) => s.blocks).filter((b) => b.kind === 'decision');
-      expect(decisions.length).toBeGreaterThan(0);
-      for (const label of ['Problem', 'Decision', 'Result']) expect(html).toContain(`<dt>${label}</dt>`);
-    });
+    const decisions = content.sections.flatMap((s) => s.blocks).filter((b) => b.kind === 'decision');
+    if (withoutDecisions.includes(page)) {
+      it('has no design decisions, as on the live page', () => {
+        expect(decisions).toHaveLength(0);
+      });
+    } else {
+      it('labels each design decision Problem, Decision and Result', () => {
+        expect(decisions.length).toBeGreaterThan(0);
+        for (const label of ['Problem', 'Decision', 'Result']) expect(html).toContain(`<dt>${label}</dt>`);
+      });
+    }
   });
 }
+
+describe('KanbanLight page', () => {
+  const html = renderToStaticMarkup(createElement(KanbanLightPage, { headingId: 'title' }));
+
+  it('shows the version and build state in the subtitle', () => {
+    expect(html).toContain('<p>Git-style Kanban board · v0.0.1 (early build)</p>');
+  });
+
+  it('links the source and the demo, labelled as an early build', () => {
+    expect(html).toContain('href="https://github.com/vardaanbazaz/kanbanlight"');
+    expect(html).toContain('href="https://kanbanlight.vercel.app" target="_blank" rel="noreferrer">Live demo · early build</a>');
+  });
+
+  it('never mentions merging', () => {
+    expect(html).not.toMatch(/merg/i);
+  });
+});
+
+describe('Unified API Ingester page', () => {
+  const html = renderToStaticMarkup(createElement(IngesterPage, { headingId: 'title' }));
+
+  it('shows the three figures as a plain list', () => {
+    expect(html).toContain(
+      '<dl><dt>Tests:</dt><dd>Unit-tested, CI on GitHub Actions</dd><dt>Persistence Engine:</dt><dd>DuckDB + Parquet Lake</dd><dt>Partitioning Scheme:</dt><dd>Hive-style UTC date partitions</dd></dl>',
+    );
+  });
+
+  it('uses no benchmark or specifications wording', () => {
+    expect(JSON.stringify(ingester)).not.toMatch(/benchmark|specification/i);
+    expect(html).not.toMatch(/benchmark|specification/i);
+  });
+
+  it('keeps the work-in-progress note', () => {
+    expect(html).toContain('<p>Work in progress; details may change.</p>');
+  });
+
+  it('links the repo only', () => {
+    expect(ingester.demo).toBeUndefined();
+    expect([...html.matchAll(/href="http/g)]).toHaveLength(1);
+    expect(html).toContain('href="https://github.com/vardaanbazaz/unified-api-ingester"');
+  });
+
+  it('shows every line of the write-up unchanged', () => {
+    const lines = [
+      'A Python pipeline that pulls from a REST API and writes to two sinks.',
+      '<strong>Source:</strong> OpenBreweryDB REST API.',
+      '<strong>Retries:</strong> configurable exponential backoff on transient 4xx/5xx errors.',
+      '<strong>DuckDB sink:</strong> idempotent upserts with ON CONFLICT (id) DO UPDATE.',
+      '<strong>Parquet sink:</strong> data lake with Hive-style UTC date partitions.',
+      '<strong>Config:</strong> config/config.yaml, with CLI overrides.',
+      '<strong>Runtime:</strong> Python 3.10+.',
+      '<strong>Tests:</strong> unit-tested, CI on GitHub Actions.',
+    ];
+    for (const line of lines) expect(html).toContain(line);
+  });
+});
 
 it('gives every project section heading an id no other project uses', () => {
   const ids = projectPages.flatMap(({ content }) => content.sections.map((s) => s.id));

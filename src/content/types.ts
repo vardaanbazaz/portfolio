@@ -130,6 +130,8 @@ export interface ProjectContent {
   subtitle: string;
   summary: string;
   source: ExternalLink;
+  /** A live demo, listed after the source link. */
+  demo?: ExternalLink;
   pills: readonly string[];
   /** Headline figures, shown under the status. */
   figures?: readonly Figure[];
