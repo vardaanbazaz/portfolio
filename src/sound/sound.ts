@@ -63,7 +63,7 @@ const isVisible = () => !visibility || visibility.visibilityState === 'visible';
 
 function wake(ctx: AudioContext) {
   // Refused outside a gesture (common on phones); the next press tries again.
-  if (ctx.state !== 'running') ctx.resume().catch(() => {});
+  if (ctx.state !== 'running') ctx.resume().catch(() => { });
 }
 
 /** Inaudible constant signal so the output device never goes idle between sweeps. Runs for the life of the context. */
@@ -77,7 +77,7 @@ function keepAwake(ctx: AudioContext) {
 function onVisibilityChange() {
   if (!context) return;
   if (isVisible()) wake(context);
-  else void context.suspend().catch(() => {});
+  else void context.suspend().catch(() => { });
 }
 
 function sweep(ctx: AudioContext, direction: Direction, requestedAt: number) {
@@ -85,10 +85,10 @@ function sweep(ctx: AudioContext, direction: Direction, requestedAt: number) {
   if (import.meta.env.DEV) {
     console.log(
       `[sound] ${direction} state=${ctx.state} now=${ctx.currentTime.toFixed(3)}s start=${t.toFixed(3)}s ` +
-        `waited=${Math.round(performance.now() - requestedAt)}ms`,
+      `waited=${Math.round(performance.now() - requestedAt)}ms`,
     );
   }
-  const [from, to] = direction === 'in' ? [220, 440] : [440, 220];
+  const [from, to] = direction === 'in' ? [440, 880] : [880, 440];
 
   const osc = ctx.createOscillator();
   osc.type = 'triangle';
@@ -96,7 +96,7 @@ function sweep(ctx: AudioContext, direction: Direction, requestedAt: number) {
   osc.frequency.exponentialRampToValueAtTime(to, t + SWEEP_SECONDS);
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
-  filter.frequency.value = 1400;
+  filter.frequency.value = 3000;
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(0.0001, t);
   gain.gain.exponentialRampToValueAtTime(SWEEP_PEAK_GAIN, t + 0.03);
@@ -114,7 +114,7 @@ function flush() {
   pending = null;
 }
 
-const noop = () => {};
+const noop = () => { };
 
 export const sound = {
   get muted() {
