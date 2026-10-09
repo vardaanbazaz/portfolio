@@ -3,9 +3,8 @@ import { Canvas } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
 import { LANDING, SECTION_LINES, SECTION_TITLES } from '../content/scene';
 import { environment } from '../environment/registry';
-import { PAGE_IDS, type PageId } from '../pages/contract';
 import { SECTION_IDS } from '../sections/contract';
-import { PAGE_SECTION } from '../sections/layouts';
+import { MARKERS, markerAt, type PlacedMarker } from '../sections/layouts';
 import { appStore, useAppState } from '../store';
 import type { Quality } from '../visuals/shared';
 import { CameraRig } from './CameraRig';
@@ -28,13 +27,15 @@ interface SceneRootProps extends SectionHandlers {
 }
 
 export function SceneRoot({ onOpen, hidden }: SceneRootProps) {
-  const { phase, page } = useAppState();
+  const { phase, page, item } = useAppState();
   const [startQuality] = useState(initialQuality);
   const [quality, setQuality] = useState<Quality>(startQuality);
   const [dpr, setDpr] = useState<number | [number, number]>(DPR_RANGE);
-  const [hoveredMarker, setHoveredMarker] = useState<PageId | null>(null);
+  const [hoveredMarker, setHoveredMarker] = useState<PlacedMarker | null>(null);
   const frame = useMemo(createFrameState, []);
   const { World } = environment;
+  const target = useMemo(() => (page ? { page, item: item ?? undefined } : null), [page, item]);
+  const activeMarker = target ? markerAt(target) : undefined;
 
   // Drop to low quality on a sustained frame-rate decline and never climb back this session.
   const onDecline = () => {
@@ -58,7 +59,7 @@ export function SceneRoot({ onOpen, hidden }: SceneRootProps) {
         onCreated={({ gl }) => gl.domElement.setAttribute('aria-hidden', 'true')}
       >
         <PerformanceMonitor bounds={() => [PERF_DECLINE_BELOW_FPS, Infinity]} onDecline={onDecline} />
-        <CameraRig frame={frame} phase={phase} page={page} onFlyInDone={onFlyInDone} onFlyOutDone={onFlyOutDone} />
+        <CameraRig frame={frame} phase={phase} target={target} onFlyInDone={onFlyInDone} onFlyOutDone={onFlyOutDone} />
         <MarkerTracker frame={frame} />
         <OverlayTracker frame={frame} />
         <World pathT={frame.pathT} quality={quality} />
@@ -70,8 +71,8 @@ export function SceneRoot({ onOpen, hidden }: SceneRootProps) {
             id={id}
             proximity={frame.proximity[id]}
             quality={quality}
-            active={page && PAGE_SECTION[page] === id ? page : null}
-            markerHovered={hoveredMarker && PAGE_SECTION[hoveredMarker] === id ? hoveredMarker : null}
+            active={activeMarker?.section === id ? activeMarker.key : null}
+            markerHovered={hoveredMarker?.section === id ? hoveredMarker.key : null}
             onOpen={onOpen}
           />
         ))}
@@ -91,12 +92,12 @@ export function SceneRoot({ onOpen, hidden }: SceneRootProps) {
           <p className="caption-line">{SECTION_LINES[id]}</p>
         </div>
       ))}
-      {PAGE_IDS.map((id) => (
+      {MARKERS.map((placed) => (
         <Marker
-          key={id}
-          id={id}
+          key={placed.key}
+          target={placed.marker}
           onOpen={onOpen}
-          onHoverChange={(hovered) => setHoveredMarker((cur) => (hovered ? id : cur === id ? null : cur))}
+          onHoverChange={(hovered) => setHoveredMarker((cur) => (hovered ? placed : cur === placed ? null : cur))}
         />
       ))}
     </div>

@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
-import { PAGE_IDS } from '../pages/contract';
-import { PAGE_SECTION } from '../sections/layouts';
+import { MARKERS } from '../sections/layouts';
 import type { FrameState } from './frameState';
 import { markerWorldAnchor } from './layout';
 import { getMarker } from './markerRegistry';
@@ -15,17 +14,17 @@ const projected = new Vector3();
 export function MarkerTracker({ frame }: { frame: FrameState }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
-  const anchors = useMemo(() => PAGE_IDS.map((id) => [id, markerWorldAnchor(id)] as const), []);
+  const anchors = useMemo(() => MARKERS.map((m) => [m, markerWorldAnchor(m)] as const), []);
 
   // Registered after CameraRig, so it runs after the camera has moved this frame.
   useFrame(() => {
     camera.updateMatrixWorld();
-    for (const [id, anchor] of anchors) {
-      const el = getMarker(id);
+    for (const [{ key, section }, anchor] of anchors) {
+      const el = getMarker(key);
       if (!el) continue;
       projected.copy(anchor).project(camera);
       const inFront = projected.z < 1;
-      const show = inFront && frame.proximity[PAGE_SECTION[id]].current >= MARKER_MIN_PROXIMITY;
+      const show = inFront && frame.proximity[section].current >= MARKER_MIN_PROXIMITY;
       const visibility = show ? 'visible' : 'hidden';
       if (el.style.visibility !== visibility) el.style.visibility = visibility;
       if (!show) continue;

@@ -1,4 +1,4 @@
-import type { PageId } from '../pages/contract';
+import type { ItemId, PageId } from '../pages/contract';
 import type { SectionId } from '../sections/contract';
 
 /**
@@ -46,3 +46,14 @@ export const PAGE_LABELS: Record<PageId, string> = {
   publications: 'Publications',
   contact: 'Contact',
 };
+
+/** Labels of the markers that open an item of a page. */
+export const ITEM_LABELS: Record<ItemId, string> = {
+  drdo: 'DRDO', // FACTS 2.1 Display line
+  agrybin: 'AgryBin', // FACTS 2.2 Company name
+  'v-surveillance': 'V-Surveillance', // paper title, src/content/pages/publications.ts
+  'web-page-linker': 'Web Page Linker', // paper title, src/content/pages/publications.ts
+};
+
+/** A marker's label: its item's, or its page's. */
+export const markerLabel = ({ page, item }: { page: PageId; item?: ItemId }) => (item ? ITEM_LABELS[item] : PAGE_LABELS[page]);

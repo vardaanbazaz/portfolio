@@ -1,7 +1,6 @@
 import { Euler, MathUtils, Vector3 } from 'three';
-import type { PageId } from '../pages/contract';
-import { SECTION_IDS, type LocalBox, type SectionId } from '../sections/contract';
-import { markerFor, PAGE_SECTION, sectionLayouts } from '../sections/layouts';
+import { SECTION_IDS, type LocalBox, type MarkerTarget, type SectionId } from '../sections/contract';
+import { markerAt, PAGE_SECTION, sectionLayouts, type PlacedMarker } from '../sections/layouts';
 import { fovForAspect, pathPos, SECTION_T, sectionGroundPoint } from './cameraPath';
 import { INSPECT_ELEVATION, INSPECT_MARGIN, MARKER_LIFT } from './tuning';
 
@@ -40,10 +39,19 @@ export function sectionToWorld(id: SectionId, local: [number, number, number], t
     .add(new Vector3(...ground));
 }
 
-/** World point a page's marker button is pinned to: just above the top of its box. */
-export function markerWorldAnchor(page: PageId, target = new Vector3()): Vector3 {
-  const { centre, half } = markerFor(page).box;
-  return sectionToWorld(PAGE_SECTION[page], [centre[0], centre[1] + half[1] + MARKER_LIFT, centre[2]], target);
+/** World point a marker's button is pinned to: just above the top of its box. */
+export function markerWorldAnchor({ section, marker }: PlacedMarker, target = new Vector3()): Vector3 {
+  const { centre, half } = marker.box;
+  return sectionToWorld(section, [centre[0], centre[1] + half[1] + MARKER_LIFT, centre[2]], target);
+}
+
+/** What the inspect pose frames for a target: its marker's box, or the whole section when the target names
+ *  no marker (a page with items, opened by its URL). */
+export function inspectBox(target: MarkerTarget): { section: SectionId; box: LocalBox } {
+  const placed = markerAt(target);
+  if (placed) return { section: placed.section, box: placed.marker.box };
+  const section = PAGE_SECTION[target.page];
+  return { section, box: { centre: [0, 0, 0], half: sectionLayouts[section].bounds } };
 }
 
 /** Index of the marker whose box centre is nearest to a point in the section's local space (x and z only). */
@@ -62,11 +70,11 @@ export function nearestMarkerIndex(boxes: readonly LocalBox[], x: number, z: num
 
 const scratchDir = new Vector3();
 
-/** Camera pose while a page is open: in front of its marker's box, a little above it, framing the whole box.
- *  Writes position and look-at target. */
-export function inspectPose(page: PageId, aspect: number, position: Vector3, look: Vector3): void {
-  const section = PAGE_SECTION[page];
-  const { centre, half } = markerFor(page).box;
+/** Camera pose while a page is open: in front of the target's box (see `inspectBox`), a little above it,
+ *  framing the whole box. Writes position and look-at target. */
+export function inspectPose(target: MarkerTarget, aspect: number, position: Vector3, look: Vector3): void {
+  const { section, box } = inspectBox(target);
+  const { centre, half } = box;
   sectionToWorld(section, centre, look);
 
   const radius = Math.hypot(...half);

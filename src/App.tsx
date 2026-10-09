@@ -2,16 +2,17 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, type C
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { AnimatePresence } from 'motion/react';
 import { PAGE_LABELS, SITE_NAME } from './content/scene';
-import { PAGE_IDS, type PageId } from './pages/contract';
+import { PAGE_IDS } from './pages/contract';
 import { PageView } from './pages/PageView';
 import { pageLoaders } from './pages/registry';
-import { PAGE_PATHS, pageForPath, sectionForHash, sectionHash } from './routes';
+import { itemForState, itemState, PAGE_PATHS, pageForPath, sectionForHash, sectionHash } from './routes';
 import { nearestSection, scrollProgress, SECTION_T } from './scene/cameraPath';
 import { focusMarker } from './scene/markerRegistry';
 import { isTravelling, stopTravel, travelTo } from './scene/menuTravel';
 import { SceneRoot } from './scene/SceneRoot';
 import { SCROLL_PAGES } from './scene/tuning';
-import type { SectionId } from './sections/contract';
+import type { MarkerTarget, SectionId } from './sections/contract';
+import { returnMarker } from './sections/layouts';
 import { MuteToggle } from './sound/MuteToggle';
 import { sound } from './sound/sound';
 import { appStore, useAppState } from './store';
@@ -82,7 +83,7 @@ function useScrollLock(locked: boolean, bootT: number | null) {
 }
 
 function AppShell({ bootT }: { bootT: number | null }) {
-  const { phase, page, route, returnFocus, sceneHidden } = useAppState();
+  const { phase, page, item, route, returnFocus, sceneHidden } = useAppState();
   const location = useLocation();
   const navigate = useNavigate();
   const closeRequested = useRef(false);
@@ -91,8 +92,9 @@ function AppShell({ bootT }: { bootT: number | null }) {
 
   // The URL is the source of truth: every change (marker, close, menu, Back, Forward) goes through here.
   useEffect(() => {
-    appStore.dispatch({ type: 'route', route: pageForPath(location.pathname) });
-  }, [location.pathname]);
+    const route = pageForPath(location.pathname);
+    appStore.dispatch({ type: 'route', route, item: itemForState(route, location.state) });
+  }, [location.pathname, location.state]);
 
   useEffect(() => {
     document.title = route ? UI.pageTitle(PAGE_LABELS[route]) : SITE_NAME;
@@ -133,14 +135,15 @@ function AppShell({ bootT }: { bootT: number | null }) {
       pendingTravel.current = null;
       travel(destination);
     } else if (returnFocus) {
-      focusMarker(returnFocus);
+      focusMarker(returnMarker(returnFocus));
     }
   }, [phase, returnFocus, travel]);
 
+  // A marker with an item opens its page at the page's own URL; the item rides in history state, so Forward reopens it.
   const openPage = useCallback(
-    (id: PageId) => {
+    ({ page: id, item }: MarkerTarget) => {
       if (appStore.get().phase !== 'exploring') return;
-      navigate(PAGE_PATHS[id]);
+      navigate(PAGE_PATHS[id], { state: itemState(item) });
     },
     [navigate],
   );
@@ -186,7 +189,7 @@ function AppShell({ bootT }: { bootT: number | null }) {
       {/* initial={false}: a direct load shows its page at once, with no fade or fly-in. */}
       <AnimatePresence initial={false} onExitComplete={onPageGone}>
         {phase === 'pageOpen' && page && (
-          <PageView key={page} page={page} onBack={closePage} onShown={onPageShown} />
+          <PageView key={page} page={page} item={item} onBack={closePage} onShown={onPageShown} />
         )}
       </AnimatePresence>
       <SectionMenu onSelect={goTo} onTop={goToTop} />

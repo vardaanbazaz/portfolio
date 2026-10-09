@@ -1,4 +1,5 @@
-/** Every full page, one per marker. A page belongs to exactly one section (see `src/sections/layouts.ts`). */
+/** Every full page. A page belongs to exactly one section and has one marker there,
+ *  or one marker per item when it has items (see `src/sections/layouts.ts`). */
 export type PageId =
   | 'about'
   | 'datavista'
@@ -21,6 +22,24 @@ export const PAGE_IDS: readonly PageId[] = [
   'publications',
   'contact',
 ];
+
+/** A part of a page that has its own marker in the scene (one role, one paper). It has no URL of its own:
+ *  its marker opens the page scrolled to it. Unique across the site. */
+export type ItemId = 'drdo' | 'agrybin' | 'v-surveillance' | 'web-page-linker';
+
+/** Each page's items, in the order the page shows them. Pages not listed have none. */
+export const PAGE_ITEMS: Partial<Record<PageId, readonly ItemId[]>> = {
+  experience: ['drdo', 'agrybin'],
+  publications: ['v-surveillance', 'web-page-linker'],
+};
+
+/** The page an item belongs to. */
+export const ITEM_PAGE = Object.fromEntries(
+  (Object.entries(PAGE_ITEMS) as [PageId, readonly ItemId[]][]).flatMap(([page, items]) => items.map((item) => [item, page])),
+) as Record<ItemId, PageId>;
+
+/** id for an item's heading on its page: the page scrolls to it and focuses it when the item's marker opened the page. */
+export const itemHeadingId = (item: ItemId) => `item-${item}`;
 
 export interface PageProps {
   /** id for the page's h1, which labels the main landmark. */

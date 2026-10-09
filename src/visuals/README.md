@@ -2,7 +2,7 @@
 
 The scene has two replaceable slots:
 
-- **Section visuals**: one per section, in `src/sections/<id>/`. A section can hold several markers, each opening its own page (Projects has one per project).
+- **Section visuals**: one per section, in `src/sections/<id>/`. A section can hold several markers. A marker opens either a whole page (Projects has one per project) or one item within a page (Experience has one per role, Publications one per paper).
 - **Environment**: everything between the sections, in `src/environment/<name>/`.
 
 Camera, routing and sound code import only each slot's contract (`contract.ts`) and registry (`registry.ts`). They never import a module's internals. To replace a visual, write a new module that satisfies the contract and point the registry at it.
@@ -38,11 +38,21 @@ export interface LocalBox {
   half: [x: number, y: number, z: number];
 }
 
-/** One clickable object in a section. Each marker opens its own page. */
-export interface SectionMarker {
+/** What a marker opens: a page, or one item within a page (the page opens scrolled to that item). */
+export interface MarkerTarget {
   page: PageId;
+  /** An item of `page` (see `PAGE_ITEMS` in `src/pages/contract.ts`). Absent: the marker opens the whole page. */
+  item?: ItemId;
+}
+
+/** Identifies a marker: its item, or its page when it has no item. */
+export type MarkerKey = PageId | ItemId;
+export const markerKey = ({ page, item }: MarkerTarget): MarkerKey => item ?? page;
+
+/** One clickable object in a section. A page without items has one marker; a page with items has one per item. */
+export interface SectionMarker extends MarkerTarget {
   /** The part of the visual this marker belongs to: its button is pinned above it,
-   *  the inspect pose frames it, and a click on the visual nearest to it opens `page`. */
+   *  the inspect pose frames it, and a click on the visual nearest to it opens its target. */
   box: LocalBox;
 }
 
@@ -56,10 +66,11 @@ export interface SectionLayout {
 export interface SectionVisualProps {
   /** 0 when the camera is far from this section, 1 at the section's path point. */
   proximity: FrameValue<number>;
-  /** The page of this section that is opening, open or closing; null otherwise. */
-  active: PageId | null;
-  /** The page whose marker or part of the visual is hovered or keyboard-focused; null otherwise. */
-  hovered: PageId | null;
+  /** The marker of this section whose page is opening, open or closing; null otherwise
+   *  (also null when the page was opened without an item, by its URL, and has several markers). */
+  active: MarkerKey | null;
+  /** The marker whose button or part of the visual is hovered or keyboard-focused; null otherwise. */
+  hovered: MarkerKey | null;
   quality: Quality;
 }
 
@@ -77,7 +88,9 @@ Additional rules for section visuals:
 
 - Keep the layout in the section's own `layout.ts` as plain data, so scene geometry and tests can read it without loading the visual.
 - Draw only inside `bounds`. The scene lifts the visual by `bounds[1]`, so its bottom face sits on the floor. Each marker box stands on the floor too.
-- Draw each marker's part inside its `box`, and highlight it when `hovered` or `active` names its page.
+- Draw each marker's part inside its `box`, and highlight it when `hovered` or `active` equals its `markerKey`.
+- An item marker's label comes from `ITEM_LABELS` in `src/content/scene.ts`; a page marker's from `PAGE_LABELS`. Give each item its own box. An item has no URL of its own: its marker opens the page at the page's path with the item in history state, the page scrolls to the item's heading (`itemHeadingId`) and focuses it, and the camera frames that item's box. Opened by its URL alone, a page with items frames the whole section.
+- `rowLayout` (`src/sections/row.ts`) lays out a straight row of boxes standing on the floor, one marker each. Give neighbouring boxes different heights so their marker buttons don't overlap on narrow screens.
 - Never attach to the scene itself (`attach="fog"` or `attach="background"`). The environment owns those.
 - Don't hide yourself by distance. The scene stops drawing a section once it is beyond the cull distance (`CULL_DISTANCE` in `src/scene/tuning.ts`).
 

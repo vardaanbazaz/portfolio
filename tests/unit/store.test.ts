@@ -3,7 +3,7 @@ import { createStore, INITIAL_STATE, reduce, type AppEvent, type AppState } from
 
 const run = (events: AppEvent[], from: AppState = INITIAL_STATE) => events.reduce(reduce, from);
 const boot = (route: AppState['route']): AppEvent => ({ type: 'boot', route });
-const route = (r: AppState['route']): AppEvent => ({ type: 'route', route: r });
+const route = (r: AppState['route'], item?: AppState['item']): AppEvent => ({ type: 'route', route: r, item });
 
 describe('boot', () => {
   it('goes straight to exploring on /', () => {
@@ -15,10 +15,44 @@ describe('boot', () => {
     expect(run([boot('publications')])).toEqual({
       phase: 'pageOpen',
       page: 'publications',
+      item: null,
       route: 'publications',
+      routeItem: null,
       returnFocus: null,
       sceneHidden: true,
     });
+  });
+
+  it('keeps the page open when a reload brings back an item in history state', () => {
+    const booted = run([boot('experience')]);
+    expect(reduce(booted, route('experience', 'drdo'))).toBe(booted);
+  });
+});
+
+describe('items', () => {
+  const exploring = run([boot(null)]);
+
+  it('flies in to the item, and returns focus to its marker', () => {
+    const open = run([route('experience', 'agrybin'), { type: 'flyInDone' }], exploring);
+    expect(open).toMatchObject({ phase: 'pageOpen', page: 'experience', item: 'agrybin', routeItem: 'agrybin' });
+    const back = run([route(null), { type: 'pageHidden' }, { type: 'flyOutDone' }], open);
+    expect(back).toMatchObject({ phase: 'exploring', page: null, item: null, routeItem: null });
+    expect(back.returnFocus).toEqual({ page: 'experience', item: 'agrybin' });
+  });
+
+  it('keeps the next route’s item while the camera returns to the path, then flies in to it', () => {
+    const s = run([route('publications', 'web-page-linker'), route(null), route('experience', 'drdo')], exploring);
+    expect(s).toMatchObject({ phase: 'flyingOut', page: 'publications', item: 'web-page-linker', routeItem: 'drdo' });
+    expect(run([{ type: 'flyOutDone' }], s)).toMatchObject({ phase: 'flyingIn', page: 'experience', item: 'drdo' });
+  });
+
+  it('keeps the item when Back during a fly-in reverses it', () => {
+    const s = run([route('experience', 'drdo'), route(null)], exploring);
+    expect(s).toMatchObject({ phase: 'flyingOut', page: 'experience', item: 'drdo' });
+  });
+
+  it('opens the whole page when the entry carries no item', () => {
+    expect(run([route('experience')], exploring)).toMatchObject({ phase: 'flyingIn', item: null });
   });
 });
 
@@ -42,12 +76,13 @@ describe('open and close', () => {
       'exploring',
     ]);
     expect(states[1].page).toBe('datavista');
-    expect(states.at(-1)).toMatchObject({ page: null, route: null, returnFocus: 'datavista' });
+    expect(states.at(-1)).toMatchObject({ page: null, route: null, returnFocus: { page: 'datavista' } });
   });
 
   it('closes a direct-loaded page through the normal fly-out', () => {
     const s = run([route(null), { type: 'pageHidden' }, { type: 'flyOutDone' }], run([boot('experience')]));
-    expect(s).toMatchObject({ phase: 'exploring', page: null, returnFocus: 'experience' });
+    // No item: focus goes to the page's first marker (see returnMarker).
+    expect(s).toMatchObject({ phase: 'exploring', page: null, returnFocus: { page: 'experience' } });
   });
 });
 

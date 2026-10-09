@@ -2,27 +2,39 @@ import { Suspense, useEffect, useRef, type RefObject } from 'react';
 import { motion } from 'motion/react';
 import { PAGE_FADE_SECONDS } from '../scene/tuning';
 import { UI } from '../ui/strings';
-import type { PageId } from './contract';
+import { itemHeadingId, type ItemId, type PageId } from './contract';
 import { pages } from './registry';
 
 interface PageViewProps {
   page: PageId;
+  /** The item whose marker opened the page; null for the whole page. */
+  item: ItemId | null;
   onBack: () => void;
   /** The fade-in finished and the page now covers the whole viewport. */
   onShown: () => void;
 }
 
-/** Focuses the page h1 once the page's chunk has loaded and rendered (it mounts together with the page). */
-function FocusHeading({ root }: { root: RefObject<HTMLElement | null> }) {
+/** Once the page's chunk has loaded and rendered (it mounts together with the page), focuses the item's heading
+ *  and scrolls the page to it, or focuses the page h1 when there is no item. */
+function FocusHeading({ root, item }: { root: RefObject<HTMLElement | null>; item: ItemId | null }) {
   useEffect(() => {
-    root.current?.querySelector<HTMLElement>('h1')?.focus();
-  }, [root]);
+    const page = root.current;
+    const heading = item && page?.querySelector<HTMLElement>(`#${itemHeadingId(item)}`);
+    if (page && heading) {
+      heading.focus({ preventScroll: true });
+      // Scrolls only the page itself, never the window: the camera follows the window's scroll position.
+      const offset = heading.getBoundingClientRect().top - page.getBoundingClientRect().top;
+      page.scrollTop += offset - parseFloat(getComputedStyle(heading).scrollMarginTop);
+    } else {
+      root.current?.querySelector<HTMLElement>('h1')?.focus();
+    }
+  }, [root, item]);
   return null;
 }
 
 /** A page: an opaque full-viewport view that scrolls on its own, so reading never moves the scene.
  *  The page's code and content load the first time it opens. */
-export function PageView({ page, onBack, onShown }: PageViewProps) {
+export function PageView({ page, item, onBack, onShown }: PageViewProps) {
   const root = useRef<HTMLElement>(null);
   const Page = pages[page];
   const headingId = `page-title-${page}`;
@@ -59,7 +71,7 @@ export function PageView({ page, onBack, onShown }: PageViewProps) {
           }
         >
           <Page headingId={headingId} />
-          <FocusHeading root={root} />
+          <FocusHeading root={root} item={item} />
         </Suspense>
       </div>
     </motion.main>

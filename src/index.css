@@ -42,7 +42,8 @@ button:hover {
 }
 
 button:focus-visible,
-h1:focus-visible {
+h1:focus-visible,
+h2:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -171,6 +172,11 @@ h1:focus-visible {
   margin: 0 auto;
   /* Top padding keeps the heading clear of the fixed menu. */
   padding: 72px 16px 96px;
+}
+
+/* An item's heading, which its marker opens the page scrolled to: kept clear of the fixed menu like the page top. */
+.page h2[tabindex='-1'] {
+  scroll-margin-top: 72px;
 }
 
 .page-loading {

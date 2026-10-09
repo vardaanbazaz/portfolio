@@ -1,38 +1,37 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Vector3, type Group } from 'three';
-import type { PageId } from '../pages/contract';
-import type { SectionId } from '../sections/contract';
+import { markerKey, type MarkerKey, type MarkerTarget, type SectionId, type SectionMarker } from '../sections/contract';
 import { sectionVisuals } from '../sections/registry';
 import type { FrameValue, Quality } from '../visuals/shared';
 import { sectionInRange } from './culling';
 import { nearestMarkerIndex, sectionLayout } from './layout';
 
 export interface SectionHandlers {
-  onOpen: (page: PageId) => void;
+  onOpen: (target: MarkerTarget) => void;
 }
 
 interface SectionAnchorProps extends SectionHandlers {
   id: SectionId;
   proximity: FrameValue<number>;
   quality: Quality;
-  /** The page of this section that is opening, open or closing. */
-  active: PageId | null;
-  /** The page whose marker button is hovered or keyboard-focused, if it is in this section. */
-  markerHovered: PageId | null;
+  /** The marker of this section whose page is opening, open or closing. */
+  active: MarkerKey | null;
+  /** The marker whose button is hovered or keyboard-focused, if it is in this section. */
+  markerHovered: MarkerKey | null;
 }
 
 const scratchLocal = new Vector3();
 
 /** Places a section visual in the world, and skips drawing it while it is out of range.
- *  Clicking the visual opens the page whose marker box is nearest the click. The visual itself only knows its local space. */
+ *  Clicking the visual opens the target of the marker whose box is nearest the click. The visual itself only knows its local space. */
 export function SectionAnchor({ id, proximity, quality, active, markerHovered, onOpen }: SectionAnchorProps) {
   const { Visual, layout } = sectionVisuals[id];
   const { bounds, markers } = layout;
   const { ground, rotationY } = sectionLayout[id];
   const root = useRef<Group>(null);
   const lifted = useRef<Group>(null);
-  const [meshHovered, setMeshHovered] = useState<PageId | null>(null);
+  const [meshHovered, setMeshHovered] = useState<MarkerKey | null>(null);
   const centre = useMemo(() => new Vector3(ground[0], bounds[1], ground[2]), [ground, bounds]);
   const radius = Math.hypot(...bounds);
 
@@ -45,17 +44,17 @@ export function SectionAnchor({ id, proximity, quality, active, markerHovered, o
   }, [meshHovered]);
   useEffect(() => () => void (document.body.style.cursor = ''), []);
 
-  /** The page whose box is nearest the pointer's hit point. */
-  const pageAt = (e: ThreeEvent<PointerEvent | MouseEvent>): PageId => {
-    if (markers.length === 1 || !lifted.current) return markers[0].page;
+  /** The marker whose box is nearest the pointer's hit point. */
+  const markerAt = (e: ThreeEvent<PointerEvent | MouseEvent>): SectionMarker => {
+    if (markers.length === 1 || !lifted.current) return markers[0];
     lifted.current.worldToLocal(scratchLocal.copy(e.point));
-    return markers[nearestMarkerIndex(markers.map((m) => m.box), scratchLocal.x, scratchLocal.z)].page;
+    return markers[nearestMarkerIndex(markers.map((m) => m.box), scratchLocal.x, scratchLocal.z)];
   };
 
   const onPointerMove = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
-    const page = pageAt(e);
-    setMeshHovered((cur) => (cur === page ? cur : page));
+    const key = markerKey(markerAt(e));
+    setMeshHovered((cur) => (cur === key ? cur : key));
   };
 
   return (
@@ -65,7 +64,8 @@ export function SectionAnchor({ id, proximity, quality, active, markerHovered, o
       rotation={[0, rotationY, 0]}
       onClick={(e) => {
         e.stopPropagation();
-        onOpen(pageAt(e));
+        const { page, item } = markerAt(e);
+        onOpen({ page, item });
       }}
       onPointerMove={onPointerMove}
       onPointerOut={() => setMeshHovered(null)}

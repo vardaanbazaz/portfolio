@@ -3,6 +3,7 @@ import { SITE_NAME } from '../content/scene';
 /** Interface labels only. Facts and scene text live in `src/content/`. */
 export const UI = {
   openPage: (label: string) => `Open ${label}`,
+  openItem: (label: string, pageLabel: string) => `Open ${label} in ${pageLabel}`,
   back: 'Back',
   mute: 'Mute',
   menu: 'Menu',

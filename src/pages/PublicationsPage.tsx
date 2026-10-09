@@ -3,8 +3,10 @@ import { content } from '../content/pages/publications';
 import { PAGE_LABELS } from '../content/scene';
 import type { Citation } from '../content/types';
 import { UI } from '../ui/strings';
-import type { PageProps } from './contract';
+import { itemHeadingId, PAGE_ITEMS, type PageProps } from './contract';
 import { copyText, type CopyState } from './copyText';
+
+const ITEMS = PAGE_ITEMS.publications!;
 
 /** Venue, date, authors with role, and the DOI and IEEE Xplore links. Shared by the write-up and the citations. */
 function CitationMeta({ paper }: { paper: Citation }) {
@@ -45,8 +47,11 @@ export default function PublicationsPage({ headingId }: PageProps) {
         {PAGE_LABELS.publications}
       </h1>
 
+      {/* The write-up, then the citations, are in item order (tested), so each heading gets its item's id for its marker to open at. */}
       <section>
-        <h2>{writeUp.title}</h2>
+        <h2 id={itemHeadingId(ITEMS[0])} tabIndex={-1}>
+          {writeUp.title}
+        </h2>
         <p>{writeUp.subtitle}</p>
         <CitationMeta paper={writeUp} />
         <ul className="pills">
@@ -130,9 +135,11 @@ export default function PublicationsPage({ headingId }: PageProps) {
         </p>
       </section>
 
-      {citations.map((paper) => (
+      {citations.map((paper, i) => (
         <section key={paper.doi}>
-          <h2>{paper.title}</h2>
+          <h2 id={itemHeadingId(ITEMS[i + 1])} tabIndex={-1}>
+            {paper.title}
+          </h2>
           <CitationMeta paper={paper} />
           <p>{paper.contribution}</p>
         </section>

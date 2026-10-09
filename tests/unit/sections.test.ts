@@ -1,32 +1,54 @@
 import { describe, expect, it } from 'vitest';
-import { PAGE_LABELS, SECTION_LINES, SECTION_TITLES } from '../../src/content/scene';
-import { PAGE_IDS } from '../../src/pages/contract';
+import { content as experience } from '../../src/content/pages/experience';
+import { content as publications } from '../../src/content/pages/publications';
+import { ITEM_LABELS, markerLabel, PAGE_LABELS, SECTION_LINES, SECTION_TITLES } from '../../src/content/scene';
+import { ITEM_PAGE, PAGE_IDS, PAGE_ITEMS } from '../../src/pages/contract';
 import { Vector3 } from 'three';
 import { landingOpacity, pathPos, SECTION_T } from '../../src/scene/cameraPath';
 import { sectionInRange } from '../../src/scene/culling';
 import { nearestMarkerIndex, sectionLayout } from '../../src/scene/layout';
 import { CULL_DISTANCE, LANDING_FADE_T } from '../../src/scene/tuning';
-import { SECTION_IDS, type SectionId } from '../../src/sections/contract';
-import { markerFor, PAGE_SECTION, sectionLayouts } from '../../src/sections/layouts';
+import { markerKey, SECTION_IDS, type SectionId } from '../../src/sections/contract';
+import { MARKERS, markerAt, PAGE_SECTION, returnMarker, sectionLayouts } from '../../src/sections/layouts';
 
 describe('section layouts', () => {
-  it('gives every page exactly one marker, in one section', () => {
-    const pages = SECTION_IDS.flatMap((s) => sectionLayouts[s].markers.map((m) => m.page));
-    expect([...pages].sort()).toEqual([...PAGE_IDS].sort());
-    for (const page of PAGE_IDS) expect(sectionLayouts[PAGE_SECTION[page]].markers).toContain(markerFor(page));
+  it('gives a page without items one marker and a page with items one marker per item, in page order', () => {
+    for (const page of PAGE_IDS) {
+      const targets = MARKERS.filter((m) => m.marker.page === page).map(({ marker: { page, item } }) => ({ page, item }));
+      const items = PAGE_ITEMS[page];
+      expect(targets).toEqual(items ? items.map((item) => ({ page, item })) : [{ page, item: undefined }]);
+    }
   });
 
-  it('puts the five projects in the Projects section and one marker in each other section', () => {
-    expect(sectionLayouts.projects.markers.map((m) => m.page)).toEqual([
-      'datavista',
-      'neuroinsight-ai',
-      'attrition',
-      'kanbanlight',
-      'unified-api-ingester',
-    ]);
-    for (const id of SECTION_IDS.filter((s) => s !== 'projects')) {
-      expect(sectionLayouts[id].markers.map((m) => m.page)).toEqual([id]);
-    }
+  it('gives every marker a distinct key, and keeps each page in one section', () => {
+    expect(new Set(MARKERS.map((m) => m.key)).size).toBe(MARKERS.length);
+    for (const { section, marker } of MARKERS) expect(PAGE_SECTION[marker.page]).toBe(section);
+    for (const { key, marker } of MARKERS) expect(markerAt(marker)?.key).toBe(key);
+  });
+
+  it('only gives a marker an item of its own page', () => {
+    for (const { marker } of MARKERS) if (marker.item) expect(ITEM_PAGE[marker.item]).toBe(marker.page);
+  });
+
+  it('lays out the markers of each section in the agreed order', () => {
+    const keys = (id: SectionId) => sectionLayouts[id].markers.map(markerKey);
+    expect(keys('projects')).toEqual(['datavista', 'neuroinsight-ai', 'attrition', 'kanbanlight', 'unified-api-ingester']);
+    // Most recent role first; Mahyco is a line on the page, not a box.
+    expect(keys('experience')).toEqual(['drdo', 'agrybin']);
+    expect(keys('publications')).toEqual(['v-surveillance', 'web-page-linker']);
+    for (const id of ['about', 'contact'] as const) expect(keys(id)).toEqual([id]);
+  });
+
+  it('makes the Web Page Linker box clearly smaller than the V-Surveillance one', () => {
+    const [writeUp, citation] = sectionLayouts.publications.markers.map((m) => m.box.half);
+    for (let axis = 0; axis < 3; axis++) expect(citation[axis]).toBeLessThanOrEqual(writeUp[axis] * 0.6);
+  });
+
+  it('returns focus to the page’s own marker, else its first', () => {
+    expect(returnMarker({ page: 'datavista' })).toBe('datavista');
+    expect(returnMarker({ page: 'experience', item: 'agrybin' })).toBe('agrybin');
+    expect(returnMarker({ page: 'experience' })).toBe('drdo');
+    expect(returnMarker({ page: 'publications' })).toBe('v-surveillance');
   });
 
   it('keeps every marker box inside its section bounds and standing on the floor', () => {
@@ -60,15 +82,48 @@ describe('section layouts', () => {
     }
     for (const page of PAGE_IDS) expect(PAGE_LABELS[page]).toBeTruthy();
   });
+
+  it('labels each marker with its item’s name, or its page’s', () => {
+    expect(MARKERS.map((m) => markerLabel(m.marker))).toEqual([
+      'About',
+      'DataVista',
+      'NeuroInsight-AI',
+      'Employee Attrition Analysis',
+      'KanbanLight',
+      'Unified API Ingester',
+      'DRDO',
+      'AgryBin',
+      'V-Surveillance',
+      'Web Page Linker',
+      'Contact',
+    ]);
+  });
+});
+
+describe('item headings on the pages', () => {
+  // The pages give their headings item ids by position, so content order must match item order.
+  it('lists the roles in Experience item order', () => {
+    expect(experience.roles.map((r) => r.org)).toHaveLength(PAGE_ITEMS.experience!.length);
+    experience.roles.forEach((role, i) => expect(role.org.startsWith(ITEM_LABELS[PAGE_ITEMS.experience![i]])).toBe(true));
+  });
+
+  it('puts the write-up first and then the citations, in Publications item order', () => {
+    const titles = [publications.writeUp.title, ...publications.citations.map((c) => c.title)];
+    expect(titles).toHaveLength(PAGE_ITEMS.publications!.length);
+    expect(titles[0].startsWith('V-Surveillance')).toBe(true);
+    expect(titles[1]).toContain('Web Page Linker');
+  });
 });
 
 describe('nearestMarkerIndex', () => {
-  it('picks the box under a point in the Projects row', () => {
-    const boxes = sectionLayouts.projects.markers.map((m) => m.box);
-    boxes.forEach(({ centre }, i) => expect(nearestMarkerIndex(boxes, centre[0], centre[2])).toBe(i));
-    expect(nearestMarkerIndex(boxes, -100, 0)).toBe(0);
-    expect(nearestMarkerIndex(boxes, 100, 0)).toBe(boxes.length - 1);
-  });
+  for (const id of ['projects', 'experience', 'publications'] as const) {
+    it(`picks the box under a point in the ${id} row`, () => {
+      const boxes = sectionLayouts[id].markers.map((m) => m.box);
+      boxes.forEach(({ centre }, i) => expect(nearestMarkerIndex(boxes, centre[0], centre[2])).toBe(i));
+      expect(nearestMarkerIndex(boxes, -100, 0)).toBe(0);
+      expect(nearestMarkerIndex(boxes, 100, 0)).toBe(boxes.length - 1);
+    });
+  }
 });
 
 describe('culling', () => {

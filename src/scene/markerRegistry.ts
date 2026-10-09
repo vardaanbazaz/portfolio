@@ -1,15 +1,15 @@
-import type { PageId } from '../pages/contract';
+import type { MarkerKey } from '../sections/contract';
 
-/** Marker buttons by page, so focus can return to one after its page closes. */
-const markers = new Map<PageId, HTMLButtonElement>();
+/** Marker buttons by marker, so focus can return to one after its page closes. */
+const markers = new Map<MarkerKey, HTMLButtonElement>();
 
-export function registerMarker(id: PageId, el: HTMLButtonElement | null) {
-  if (el) markers.set(id, el);
-  else markers.delete(id);
+export function registerMarker(key: MarkerKey, el: HTMLButtonElement | null) {
+  if (el) markers.set(key, el);
+  else markers.delete(key);
 }
 
-export function focusMarker(id: PageId) {
-  markers.get(id)?.focus();
+export function focusMarker(key: MarkerKey) {
+  markers.get(key)?.focus();
 }
 
-export const getMarker = (id: PageId) => markers.get(id);
+export const getMarker = (key: MarkerKey) => markers.get(key);

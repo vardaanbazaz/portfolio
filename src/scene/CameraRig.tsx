@@ -3,8 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { animate } from 'motion/react';
 import { PerspectiveCamera, Vector3 } from 'three';
 import type { Phase } from '../store';
-import type { PageId } from '../pages/contract';
-import { SECTION_IDS } from '../sections/contract';
+import { SECTION_IDS, type MarkerTarget } from '../sections/contract';
 import { cameraPose, dampTowards, fovForAspect, scrollProgress, SECTION_T, sectionProximity } from './cameraPath';
 import type { FrameState } from './frameState';
 import { inspectPose, sectionCentreHeights } from './layout';
@@ -20,14 +19,15 @@ const look = new Vector3();
 interface CameraRigProps {
   frame: FrameState;
   phase: Phase;
-  page: PageId | null;
+  /** The page (and item) opening, open or closing; null while exploring. */
+  target: MarkerTarget | null;
   onFlyInDone: () => void;
   onFlyOutDone: () => void;
 }
 
 /** Moves the camera along the path, easing toward the window's scroll position,
- *  and blends to a page's inspect pose while its page is opening, open or closing. */
-export function CameraRig({ frame, phase, page, onFlyInDone, onFlyOutDone }: CameraRigProps) {
+ *  and blends to the inspect pose of the clicked marker's box while its page is opening, open or closing. */
+export function CameraRig({ frame, phase, target, onFlyInDone, onFlyOutDone }: CameraRigProps) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   const invalidate = useThree((s) => s.invalidate);
@@ -96,9 +96,9 @@ export function CameraRig({ frame, phase, page, onFlyInDone, onFlyOutDone }: Cam
     for (const id of SECTION_IDS) frame.proximity[id].current = sectionProximity(t, SECTION_T[id]);
 
     cameraPose(t, aspect, sectionCentreHeights, pathPosition, pathLook);
-    const b = page ? blend.current : 0;
-    if (b > 0 && page) {
-      inspectPose(page, aspect, inspectPosition, inspectLook);
+    const b = target ? blend.current : 0;
+    if (b > 0 && target) {
+      inspectPose(target, aspect, inspectPosition, inspectLook);
       camera.position.lerpVectors(pathPosition, inspectPosition, b);
       look.lerpVectors(pathLook, inspectLook, b);
     } else {

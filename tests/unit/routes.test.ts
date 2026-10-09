@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PAGE_IDS } from '../../src/pages/contract';
-import { PAGE_PATHS, pageForPath, sectionForHash, sectionHash } from '../../src/routes';
+import { itemForState, itemState, PAGE_PATHS, pageForPath, sectionForHash, sectionHash } from '../../src/routes';
 import { SECTION_IDS } from '../../src/sections/contract';
 
 describe('page routes', () => {
@@ -36,6 +36,26 @@ describe('page routes', () => {
   it('ignores a trailing slash and letter case, like the router', () => {
     expect(pageForPath('/publications/')).toBe('publications');
     expect(pageForPath('/Projects/DataVista')).toBe('datavista');
+  });
+});
+
+describe('items in history state', () => {
+  it('round-trips an item of the page', () => {
+    expect(itemForState('experience', itemState('drdo'))).toBe('drdo');
+    expect(itemForState('publications', itemState('web-page-linker'))).toBe('web-page-linker');
+  });
+
+  it('carries no state for a marker without an item', () => {
+    expect(itemState(undefined)).toBeNull();
+  });
+
+  it('ignores missing, malformed, unknown or another page’s items', () => {
+    expect(itemForState('experience', null)).toBeNull();
+    expect(itemForState('experience', 'drdo')).toBeNull();
+    expect(itemForState('experience', { item: 42 })).toBeNull();
+    expect(itemForState('experience', { item: 'toString' })).toBeNull();
+    expect(itemForState('experience', { item: 'v-surveillance' })).toBeNull();
+    expect(itemForState(null, { item: 'drdo' })).toBeNull();
   });
 });
 
