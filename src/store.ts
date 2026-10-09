@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { StopId } from './stops/contract';
+import type { PageId } from './pages/contract';
 
 /**
  * exploring ⇄ flyingIn → pageOpen → closing → flyingOut → exploring
@@ -9,21 +9,21 @@ export type Phase = 'exploring' | 'flyingIn' | 'pageOpen' | 'closing' | 'flyingO
 
 export interface AppState {
   phase: Phase;
-  /** Stop the camera is flying to, showing, or leaving. Null while exploring. */
-  stop: StopId | null;
-  /** Stop the URL points at. The URL is the source of truth; the camera follows it. */
-  route: StopId | null;
-  /** Stop whose marker gets focus back once the camera has returned to the path. */
-  returnFocus: StopId | null;
+  /** Page the camera is flying to, showing, or leaving. Null while exploring. */
+  page: PageId | null;
+  /** Page the URL points at. The URL is the source of truth; the camera follows it. */
+  route: PageId | null;
+  /** Page whose marker gets focus back once the camera has returned to the path. */
+  returnFocus: PageId | null;
   /** The opaque page has fully faded in, so the canvas is hidden. Only ever true while `pageOpen`. */
   sceneHidden: boolean;
 }
 
 export type AppEvent =
-  /** First load. A stop URL opens its page straight away; `/` goes straight to exploring. */
-  | { type: 'boot'; route: StopId | null }
-  /** The URL changed (marker click, close, Back or Forward). */
-  | { type: 'route'; route: StopId | null }
+  /** First load. A page URL opens its page straight away; `/` goes straight to exploring. */
+  | { type: 'boot'; route: PageId | null }
+  /** The URL changed (marker click, close, menu, Back or Forward). */
+  | { type: 'route'; route: PageId | null }
   | { type: 'flyInDone' }
   /** The page finished fading in. */
   | { type: 'pageShown' }
@@ -31,7 +31,7 @@ export type AppEvent =
   | { type: 'pageHidden' }
   | { type: 'flyOutDone' };
 
-export const INITIAL_STATE: AppState = { phase: 'exploring', stop: null, route: null, returnFocus: null, sceneHidden: false };
+export const INITIAL_STATE: AppState = { phase: 'exploring', page: null, route: null, returnFocus: null, sceneHidden: false };
 
 /** Pure transition function. Returns the same object when nothing changes. */
 export function reduce(state: AppState, event: AppEvent): AppState {
@@ -39,7 +39,7 @@ export function reduce(state: AppState, event: AppEvent): AppState {
     case 'boot':
       return event.route
         ? // Direct load: the page is shown at once, with no fly-in or fade.
-          { phase: 'pageOpen', stop: event.route, route: event.route, returnFocus: null, sceneHidden: true }
+          { phase: 'pageOpen', page: event.route, route: event.route, returnFocus: null, sceneHidden: true }
         : INITIAL_STATE;
 
     case 'route': {
@@ -48,16 +48,16 @@ export function reduce(state: AppState, event: AppEvent): AppState {
       const next = { ...state, route };
       switch (state.phase) {
         case 'exploring':
-          return route ? { ...next, phase: 'flyingIn', stop: route } : next;
-        // Leaving the stop mid-way reverses; a different stop waits until the camera is back on the path.
+          return route ? { ...next, phase: 'flyingIn', page: route } : next;
+        // Leaving the page mid-way reverses; a different page waits until the camera is back on the path.
         case 'flyingIn':
-          return route === state.stop ? next : { ...next, phase: 'flyingOut' };
+          return route === state.page ? next : { ...next, phase: 'flyingOut' };
         case 'pageOpen':
-          return route === state.stop ? next : { ...next, phase: 'closing', sceneHidden: false };
+          return route === state.page ? next : { ...next, phase: 'closing', sceneHidden: false };
         case 'closing':
-          return route === state.stop ? { ...next, phase: 'pageOpen' } : next;
+          return route === state.page ? { ...next, phase: 'pageOpen' } : next;
         case 'flyingOut':
-          return route === state.stop ? { ...next, phase: 'flyingIn' } : next;
+          return route === state.page ? { ...next, phase: 'flyingIn' } : next;
       }
       return next;
     }
@@ -74,8 +74,8 @@ export function reduce(state: AppState, event: AppEvent): AppState {
     case 'flyOutDone':
       if (state.phase !== 'flyingOut') return state;
       return state.route
-        ? { ...state, phase: 'flyingIn', stop: state.route }
-        : { ...state, phase: 'exploring', stop: null, returnFocus: state.stop };
+        ? { ...state, phase: 'flyingIn', page: state.route }
+        : { ...state, phase: 'exploring', page: null, returnFocus: state.page };
   }
 }
 

@@ -14,7 +14,7 @@ describe('boot', () => {
   it('opens the page straight away on a direct load, with no fly-in or fade, and the scene hidden', () => {
     expect(run([boot('publications')])).toEqual({
       phase: 'pageOpen',
-      stop: 'publications',
+      page: 'publications',
       route: 'publications',
       returnFocus: null,
       sceneHidden: true,
@@ -25,7 +25,7 @@ describe('boot', () => {
 describe('open and close', () => {
   const exploring = run([boot(null)]);
 
-  it('runs the full cycle and returns focus to the stop that was open', () => {
+  it('runs the full cycle and returns focus to the marker of the page that was open', () => {
     const states = [
       route('datavista'),
       { type: 'flyInDone' },
@@ -41,13 +41,13 @@ describe('open and close', () => {
       'flyingOut',
       'exploring',
     ]);
-    expect(states[1].stop).toBe('datavista');
-    expect(states.at(-1)).toMatchObject({ stop: null, route: null, returnFocus: 'datavista' });
+    expect(states[1].page).toBe('datavista');
+    expect(states.at(-1)).toMatchObject({ page: null, route: null, returnFocus: 'datavista' });
   });
 
   it('closes a direct-loaded page through the normal fly-out', () => {
     const s = run([route(null), { type: 'pageHidden' }, { type: 'flyOutDone' }], run([boot('experience')]));
-    expect(s).toMatchObject({ phase: 'exploring', stop: null, returnFocus: 'experience' });
+    expect(s).toMatchObject({ phase: 'exploring', page: null, returnFocus: 'experience' });
   });
 });
 
@@ -55,13 +55,13 @@ describe('route changes mid-flight', () => {
   const flyingIn = run([boot(null), route('publications')]);
 
   it('Back during a fly-in reverses into a fly-out', () => {
-    expect(run([route(null)], flyingIn)).toMatchObject({ phase: 'flyingOut', stop: 'publications' });
+    expect(run([route(null)], flyingIn)).toMatchObject({ phase: 'flyingOut', page: 'publications' });
   });
 
   it('Forward during that fly-out reverses back into a fly-in', () => {
     expect(run([route(null), route('publications')], flyingIn)).toMatchObject({
       phase: 'flyingIn',
-      stop: 'publications',
+      page: 'publications',
     });
   });
 
@@ -71,10 +71,10 @@ describe('route changes mid-flight', () => {
     expect(run([route('publications')], closing).phase).toBe('pageOpen');
   });
 
-  it('a different stop waits until the camera is back on the path, then flies in', () => {
+  it('a different page waits until the camera is back on the path, then flies in', () => {
     const s = run([route(null), route('experience')], flyingIn);
-    expect(s).toMatchObject({ phase: 'flyingOut', stop: 'publications', route: 'experience' });
-    expect(run([{ type: 'flyOutDone' }], s)).toMatchObject({ phase: 'flyingIn', stop: 'experience' });
+    expect(s).toMatchObject({ phase: 'flyingOut', page: 'publications', route: 'experience' });
+    expect(run([{ type: 'flyOutDone' }], s)).toMatchObject({ phase: 'flyingIn', page: 'experience' });
   });
 });
 

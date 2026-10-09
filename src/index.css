@@ -61,20 +61,77 @@ h1:focus-visible {
 }
 
 .marker {
-  /* Placed every frame by MarkerTracker; hidden until its stop is in view. */
+  /* Placed every frame by MarkerTracker; hidden until its section is in view. */
   position: absolute;
   top: 0;
   left: 0;
   visibility: hidden;
-  white-space: nowrap;
+  /* Long names wrap, so neighbouring markers in a section overlap less. */
+  max-width: 10em;
+  text-align: center;
   background: rgb(20 20 23 / 0.8);
+}
+
+/* Landing text and section captions: faded every frame by OverlayTracker; hidden until then. */
+.landing,
+.caption {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.landing {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  text-align: center;
+}
+
+.landing-name {
+  margin: 0;
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  font-weight: 600;
+}
+
+.landing-line {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.landing-cue {
+  position: absolute;
+  bottom: 24px;
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--muted);
+}
+
+/* Bottom left, clear of the mute toggle at bottom right. */
+.caption {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  max-width: min(36ch, calc(100% - 120px));
+}
+
+.caption-title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.caption-line {
+  margin: 4px 0 0;
+  color: var(--muted);
 }
 
 .scene-hidden {
   visibility: hidden;
 }
 
-/* A stop's page: opaque, full viewport, its own scroll container. */
+/* A page: opaque, full viewport, its own scroll container. */
 .page {
   position: fixed;
   inset: 0;
@@ -97,7 +154,75 @@ h1:focus-visible {
   box-sizing: border-box;
   max-width: 68ch;
   margin: 0 auto;
-  padding: 24px 16px 96px;
+  /* Top padding keeps the heading clear of the fixed menu. */
+  padding: 72px 16px 96px;
+}
+
+.page-loading {
+  color: var(--muted);
+}
+
+/* Top right, above pages. */
+.menu {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.menu-toggle {
+  display: none;
+}
+
+.menu-list {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.menu-link {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  color: inherit;
+  text-decoration: none;
+  background: rgb(20 20 23 / 0.8);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.menu-link:hover {
+  border-color: var(--muted);
+}
+
+.menu-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Narrow screens: the list folds behind the toggle and opens as a column. */
+@media (max-width: 767px) {
+  .menu-toggle {
+    display: block;
+  }
+
+  .menu-list {
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    margin-top: 8px;
+  }
+
+  .menu-list-open {
+    display: flex;
+  }
 }
 
 .mute-toggle {

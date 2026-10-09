@@ -7,13 +7,14 @@ import {
   lookPos,
   pathPos,
   scrollProgress,
-  STOP_T,
-  stopGroundPoint,
-  stopProximity,
+  SECTION_T,
+  sectionGroundPoint,
+  sectionProximity,
 } from '../../src/scene/cameraPath';
-import { STOP_IDS } from '../../src/stops/contract';
-import { stopCentreHeights } from '../../src/scene/layout';
-import { BASE_FOV, MAX_FOV, STOP_PROXIMITY_RADIUS } from '../../src/scene/tuning';
+import { SECTION_IDS } from '../../src/sections/contract';
+import { sectionCentreHeights, sectionToWorld } from '../../src/scene/layout';
+import { sectionLayouts } from '../../src/sections/layouts';
+import { BASE_FOV, MAX_FOV, SECTION_PROXIMITY_RADIUS } from '../../src/scene/tuning';
 
 describe('scrollProgress', () => {
   it('maps scroll offset to 0..1 and clamps', () => {
@@ -65,16 +66,16 @@ describe('path', () => {
     expect(pathPos(2).equals(pathPos(1))).toBe(true);
   });
 
-  it('orders stops along the path after the intro stretch', () => {
-    const ts = STOP_IDS.map((id) => STOP_T[id]);
+  it('orders sections along the path after the landing stretch', () => {
+    const ts = SECTION_IDS.map((id) => SECTION_T[id]);
     expect(ts[0]).toBeGreaterThan(0.1);
     for (let i = 1; i < ts.length; i++) expect(ts[i]).toBeGreaterThan(ts[i - 1]);
     expect(ts.at(-1)!).toBeLessThan(1);
   });
 
-  it('keeps every stop clear of the camera path', () => {
-    for (const id of STOP_IDS) {
-      const ground = stopGroundPoint(id);
+  it("keeps every section's ground point clear of the camera path", () => {
+    for (const id of SECTION_IDS) {
+      const ground = sectionGroundPoint(id);
       for (let i = 0; i <= 200; i++) {
         const p = pathPos(i / 200);
         const flat = new Vector3(p.x, 0, p.z);
@@ -83,41 +84,53 @@ describe('path', () => {
     }
   });
 
+  it("keeps every section's bounding box clear of the camera path", () => {
+    for (const id of SECTION_IDS) {
+      const [hx, , hz] = sectionLayouts[id].bounds;
+      const corners = [-1, 1].flatMap((sx) => [-1, 1].map((sz) => sectionToWorld(id, [sx * hx, 0, sz * hz]).setY(0)));
+      for (let i = 0; i <= 200; i++) {
+        const p = pathPos(i / 200);
+        const flat = new Vector3(p.x, 0, p.z);
+        for (const c of corners) expect(flat.distanceTo(c)).toBeGreaterThan(1);
+      }
+    }
+  });
+
   it('produces finite look targets across the whole path, including past the end', () => {
     for (let i = 0; i <= 100; i++) {
-      const l = lookPos(i / 100, stopCentreHeights);
+      const l = lookPos(i / 100, sectionCentreHeights);
       expect(Number.isFinite(l.x) && Number.isFinite(l.y) && Number.isFinite(l.z)).toBe(true);
     }
   });
 
-  it('turns the camera toward a stop when it is at the stop', () => {
-    for (const id of STOP_IDS) {
-      const t = STOP_T[id];
+  it('turns the camera toward a section when it is at the section', () => {
+    for (const id of SECTION_IDS) {
+      const t = SECTION_T[id];
       const cam = pathPos(t);
-      const toLook = lookPos(t, stopCentreHeights).sub(cam).normalize();
-      const toStop = stopGroundPoint(id).setY(stopCentreHeights[id]).sub(cam).normalize();
+      const toLook = lookPos(t, sectionCentreHeights).sub(cam).normalize();
+      const toStop = sectionGroundPoint(id).setY(sectionCentreHeights[id]).sub(cam).normalize();
       expect(toLook.dot(toStop)).toBeGreaterThan(0.95);
     }
   });
 });
 
-describe('stopProximity', () => {
-  it('is 1 at the stop and 0 at or beyond the radius', () => {
-    expect(stopProximity(0.5, 0.5)).toBe(1);
-    expect(stopProximity(0.5 + STOP_PROXIMITY_RADIUS, 0.5)).toBe(0);
-    expect(stopProximity(0.9, 0.5)).toBe(0);
+describe('sectionProximity', () => {
+  it('is 1 at the section and 0 at or beyond the radius', () => {
+    expect(sectionProximity(0.5, 0.5)).toBe(1);
+    expect(sectionProximity(0.5 + SECTION_PROXIMITY_RADIUS, 0.5)).toBeCloseTo(0, 12);
+    expect(sectionProximity(0.9, 0.5)).toBe(0);
   });
 
   it('is symmetric and falls off monotonically', () => {
-    const r = STOP_PROXIMITY_RADIUS;
-    expect(stopProximity(0.5 - r / 3, 0.5)).toBeCloseTo(stopProximity(0.5 + r / 3, 0.5), 12);
-    expect(stopProximity(0.5 + r / 4, 0.5)).toBeGreaterThan(stopProximity(0.5 + r / 2, 0.5));
+    const r = SECTION_PROXIMITY_RADIUS;
+    expect(sectionProximity(0.5 - r / 3, 0.5)).toBeCloseTo(sectionProximity(0.5 + r / 3, 0.5), 12);
+    expect(sectionProximity(0.5 + r / 4, 0.5)).toBeGreaterThan(sectionProximity(0.5 + r / 2, 0.5));
   });
 
-  it('never overlaps between neighbouring stops', () => {
+  it('never overlaps between neighbouring sections', () => {
     for (let i = 0; i <= 1000; i++) {
       const t = i / 1000;
-      const active = STOP_IDS.filter((id) => stopProximity(t, STOP_T[id]) > 0);
+      const active = SECTION_IDS.filter((id) => sectionProximity(t, SECTION_T[id]) > 0);
       expect(active.length).toBeLessThanOrEqual(1);
     }
   });

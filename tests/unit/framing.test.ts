@@ -1,61 +1,51 @@
 import { describe, expect, it } from 'vitest';
-import { Euler, PerspectiveCamera, Vector3 } from 'three';
-import { cameraPose, fovForAspect, STOP_T } from '../../src/scene/cameraPath';
-import { inspectPose, stopCentreHeights, stopLayout } from '../../src/scene/layout';
-import { stopBounds } from '../../src/stops/bounds';
-import { STOP_IDS } from '../../src/stops/contract';
+import { PerspectiveCamera, Vector3 } from 'three';
+import { PAGE_IDS } from '../../src/pages/contract';
+import { cameraPose, fovForAspect, SECTION_T } from '../../src/scene/cameraPath';
+import { inspectPose, sectionCentreHeights, sectionToWorld } from '../../src/scene/layout';
+import { SECTION_IDS, type LocalBox, type SectionId } from '../../src/sections/contract';
+import { markerFor, PAGE_SECTION, sectionLayouts } from '../../src/sections/layouts';
 
 const ASPECTS = { desktop: 16 / 9, phone: 390 / 844 };
 
-describe('each stop fits in frame when the camera is at it', () => {
+function expectBoxInFrame(camera: PerspectiveCamera, section: SectionId, { centre, half }: LocalBox) {
+  camera.updateMatrixWorld();
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+    const corner = sectionToWorld(section, [
+      centre[0] + sx * half[0],
+      centre[1] + sy * half[1],
+      centre[2] + sz * half[2],
+    ]).project(camera);
+    expect(Math.abs(corner.x), `x of corner ${sx},${sy},${sz}`).toBeLessThanOrEqual(0.9);
+    expect(Math.abs(corner.y), `y of corner ${sx},${sy},${sz}`).toBeLessThanOrEqual(0.9);
+    expect(corner.z, 'in front of the camera').toBeLessThan(1);
+  }
+}
+
+describe('each whole section fits in frame when the camera is at it', () => {
   for (const [name, aspect] of Object.entries(ASPECTS)) {
-    for (const id of STOP_IDS) {
+    for (const id of SECTION_IDS) {
       it(`${id} on ${name}`, () => {
         const camera = new PerspectiveCamera(fovForAspect(aspect), aspect, 0.1, 200);
         const look = new Vector3();
-        cameraPose(STOP_T[id], aspect, stopCentreHeights, camera.position, look);
+        cameraPose(SECTION_T[id], aspect, sectionCentreHeights, camera.position, look);
         camera.lookAt(look);
-        camera.updateMatrixWorld();
-
-        const [hx, hy, hz] = stopBounds[id];
-        const { ground, rotationY } = stopLayout[id];
-        const rotation = new Euler(0, rotationY, 0);
-        for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
-          const corner = new Vector3(sx * hx, sy * hy + hy, sz * hz)
-            .applyEuler(rotation)
-            .add(new Vector3(...ground))
-            .project(camera);
-          expect(Math.abs(corner.x), `x of corner ${sx},${sy},${sz}`).toBeLessThanOrEqual(0.9);
-          expect(Math.abs(corner.y), `y of corner ${sx},${sy},${sz}`).toBeLessThanOrEqual(0.9);
-        }
+        expectBoxInFrame(camera, id, { centre: [0, 0, 0], half: sectionLayouts[id].bounds });
       });
     }
   }
 });
 
-describe('each stop fits in frame at its inspect pose', () => {
+describe("each page's box fits in frame at its inspect pose", () => {
   for (const [name, aspect] of Object.entries(ASPECTS)) {
-    for (const id of STOP_IDS) {
-      it(`${id} on ${name}`, () => {
+    for (const page of PAGE_IDS) {
+      it(`${page} on ${name}`, () => {
         const camera = new PerspectiveCamera(fovForAspect(aspect), aspect, 0.1, 200);
         const look = new Vector3();
-        inspectPose(id, aspect, camera.position, look);
+        inspectPose(page, aspect, camera.position, look);
         camera.lookAt(look);
-        camera.updateMatrixWorld();
-
-        const [hx, hy, hz] = stopBounds[id];
-        const { ground, rotationY } = stopLayout[id];
-        const rotation = new Euler(0, rotationY, 0);
-        for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
-          const corner = new Vector3(sx * hx, sy * hy + hy, sz * hz)
-            .applyEuler(rotation)
-            .add(new Vector3(...ground))
-            .project(camera);
-          expect(Math.abs(corner.x), `x of corner ${sx},${sy},${sz}`).toBeLessThanOrEqual(0.9);
-          expect(Math.abs(corner.y), `y of corner ${sx},${sy},${sz}`).toBeLessThanOrEqual(0.9);
-          expect(corner.z, 'in front of the camera').toBeLessThan(1);
-        }
-        // Above the floor, and on the path side of the stop.
+        expectBoxInFrame(camera, PAGE_SECTION[page], markerFor(page).box);
+        // Above the floor.
         expect(camera.position.y).toBeGreaterThan(0);
       });
     }

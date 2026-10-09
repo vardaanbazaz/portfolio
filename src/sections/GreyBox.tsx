@@ -2,13 +2,16 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges } from '@react-three/drei';
 import type { MeshStandardMaterial } from 'three';
-import type { StopVisualProps } from './contract';
+import type { FrameValue, Quality } from '../visuals/shared';
 
-interface GreyBoxProps extends StopVisualProps {
+interface GreyBoxProps {
   halfExtents: [number, number, number];
+  proximity: FrameValue<number>;
+  hovered: boolean;
+  quality: Quality;
 }
 
-/** Shared grey-box body for the prototype stop visuals. */
+/** Shared grey-box body for the prototype section visuals. */
 export function GreyBox({ halfExtents, proximity, hovered, quality }: GreyBoxProps) {
   const material = useRef<MeshStandardMaterial>(null);
   const [x, y, z] = halfExtents;

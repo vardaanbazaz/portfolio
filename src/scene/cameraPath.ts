@@ -1,34 +1,39 @@
 import { CatmullRomCurve3, MathUtils, Vector3 } from 'three';
-import type { StopId } from '../stops/contract';
+import type { SectionId } from '../sections/contract';
 import {
   BASE_FOV,
   LOOK_AHEAD,
   MAX_FOV,
   PORTRAIT_PULLBACK,
   PORTRAIT_PULLBACK_MAX,
-  STOP_LOOK_WEIGHT,
-  STOP_PROXIMITY_RADIUS,
+  LANDING_FADE_T,
+  SECTION_LOOK_WEIGHT,
+  SECTION_PROXIMITY_RADIUS,
 } from './tuning';
 
-/** Where on the path (0..1) each stop sits. 0 to 0.1 is the intro stretch. */
-export const STOP_T: Record<StopId, number> = {
-  datavista: 0.25,
-  publications: 0.55,
-  experience: 0.85,
+/** Where on the path (0..1) each section sits. 0 to 0.1 is the landing stretch. */
+export const SECTION_T: Record<SectionId, number> = {
+  about: 0.2,
+  projects: 0.39,
+  experience: 0.58,
+  publications: 0.77,
+  contact: 0.96,
 };
 
-/** Which side of the path each stop stands on: -1 left, 1 right. */
-const STOP_SIDE: Record<StopId, -1 | 1> = {
-  datavista: -1,
-  publications: 1,
-  experience: -1,
+/** Which side of the path each section stands on (-1 left, 1 right), and how far out to the side. */
+const SECTION_PLACEMENT: Record<SectionId, { side: -1 | 1; lateral: number }> = {
+  about: { side: -1, lateral: 3.5 },
+  // Wider than the others (one box per project), so it stands further out to fit in frame.
+  projects: { side: 1, lateral: 5.5 },
+  experience: { side: -1, lateral: 3.5 },
+  publications: { side: 1, lateral: 3.5 },
+  contact: { side: -1, lateral: 3.5 },
 };
 
-/** Stop placement relative to the camera's path point at the stop's t. */
-const STOP_FORWARD = 4;
-const STOP_LATERAL = 3.5;
+/** How far ahead of the camera's path point at the section's t each section stands. */
+const SECTION_FORWARD = 4;
 
-/** Height the camera looks at between stops. */
+/** Height the camera looks at between sections. */
 const LOOK_HEIGHT_AHEAD = 1.2;
 
 export const cameraCurve = new CatmullRomCurve3(
@@ -46,7 +51,7 @@ export const cameraCurve = new CatmullRomCurve3(
 const UP = new Vector3(0, 1, 0);
 const scratchTangent = new Vector3();
 const scratchSide = new Vector3();
-const scratchStop = new Vector3();
+const scratchSection = new Vector3();
 const scratchDir = new Vector3();
 
 export const clamp01 = (x: number) => MathUtils.clamp(x, 0, 1);
@@ -67,26 +72,33 @@ export function dampTowards(current: number, target: number, lambda: number, del
   return current + (target - current) * (1 - Math.exp(-lambda * delta));
 }
 
-/** 1 at the stop's t, easing to 0 at `radius` away (smoothstep). */
-export function stopProximity(t: number, stopT: number, radius = STOP_PROXIMITY_RADIUS): number {
-  const d = Math.abs(t - stopT);
+const smoothstep = (x: number) => x * x * (3 - 2 * x);
+
+/** 1 at the section's t, easing to 0 at `radius` away (smoothstep). */
+export function sectionProximity(t: number, sectionT: number, radius = SECTION_PROXIMITY_RADIUS): number {
+  const d = Math.abs(t - sectionT);
   if (d >= radius) return 0;
-  const x = 1 - d / radius;
-  return x * x * (3 - 2 * x);
+  return smoothstep(1 - d / radius);
 }
 
-/** Ground point (y = 0) a stop stands on, beside the path. */
-export function stopGroundPoint(id: StopId, target = new Vector3()): Vector3 {
-  const t = STOP_T[id];
+/** Opacity of the landing text: 1 at the start of the path, 0 from `fadeT` on. */
+export function landingOpacity(t: number, fadeT = LANDING_FADE_T): number {
+  return 1 - smoothstep(clamp01(t / fadeT));
+}
+
+/** Ground point (y = 0) a section stands on, beside the path. */
+export function sectionGroundPoint(id: SectionId, target = new Vector3()): Vector3 {
+  const t = SECTION_T[id];
+  const { side, lateral } = SECTION_PLACEMENT[id];
   cameraCurve.getTangentAt(t, scratchTangent).setY(0).normalize();
-  scratchSide.crossVectors(scratchTangent, UP).normalize().multiplyScalar(STOP_SIDE[id] * STOP_LATERAL);
-  pathPos(t, target).addScaledVector(scratchTangent, STOP_FORWARD).add(scratchSide);
+  scratchSide.crossVectors(scratchTangent, UP).normalize().multiplyScalar(side * lateral);
+  pathPos(t, target).addScaledVector(scratchTangent, SECTION_FORWARD).add(scratchSide);
   return target.setY(0);
 }
 
-/** Look-at point at path position t: ahead on the path, turned toward any nearby stop's centre.
- *  `stopHeights` is each stop's centre height above the floor. */
-export function lookPos(t: number, stopHeights: Record<StopId, number>, target = new Vector3()): Vector3 {
+/** Look-at point at path position t: ahead on the path, turned toward any nearby section's centre.
+ *  `sectionHeights` is each section's centre height above the floor. */
+export function lookPos(t: number, sectionHeights: Record<SectionId, number>, target = new Vector3()): Vector3 {
   const ahead = t + LOOK_AHEAD;
   if (ahead <= 1) {
     pathPos(ahead, target);
@@ -98,18 +110,18 @@ export function lookPos(t: number, stopHeights: Record<StopId, number>, target =
   }
   target.setY(LOOK_HEIGHT_AHEAD);
 
-  let nearest: StopId | null = null;
+  let nearest: SectionId | null = null;
   let weight = 0;
-  for (const id of Object.keys(STOP_T) as StopId[]) {
-    const w = stopProximity(t, STOP_T[id]);
+  for (const id of Object.keys(SECTION_T) as SectionId[]) {
+    const w = sectionProximity(t, SECTION_T[id]);
     if (w > weight) {
       weight = w;
       nearest = id;
     }
   }
   if (nearest) {
-    stopGroundPoint(nearest, scratchStop).setY(stopHeights[nearest]);
-    target.lerp(scratchStop, weight * STOP_LOOK_WEIGHT);
+    sectionGroundPoint(nearest, scratchSection).setY(sectionHeights[nearest]);
+    target.lerp(scratchSection, weight * SECTION_LOOK_WEIGHT);
   }
   return target;
 }
@@ -132,12 +144,12 @@ export function portraitPullback(aspect: number): number {
 export function cameraPose(
   t: number,
   aspect: number,
-  stopHeights: Record<StopId, number>,
+  sectionHeights: Record<SectionId, number>,
   position: Vector3,
   look: Vector3,
 ): void {
   pathPos(t, position);
-  lookPos(t, stopHeights, look);
+  lookPos(t, sectionHeights, look);
   const back = portraitPullback(aspect);
   if (back > 0) {
     scratchDir.subVectors(look, position).normalize();

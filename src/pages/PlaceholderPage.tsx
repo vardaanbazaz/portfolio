@@ -1,21 +1,20 @@
-import type { StopId } from '../stops/contract';
-import { STOP_LABELS, UI } from '../ui/strings';
+import { PAGE_LABELS } from '../content/scene';
+import type { PlaceholderContent } from '../content/types';
+import type { PageId, PageProps } from './contract';
 
-export interface PageProps {
-  /** id for the page's h1, which labels the main landmark. */
-  headingId: string;
+interface PlaceholderPageProps extends PageProps {
+  page: PageId;
+  content: PlaceholderContent;
 }
 
-/** Phase B stand-in: the stop's name and the word "Placeholder". Real pages come from the content file later. */
-export function placeholderPage(id: StopId) {
-  return function PlaceholderPage({ headingId }: PageProps) {
-    return (
-      <article>
-        <h1 id={headingId} tabIndex={-1}>
-          {STOP_LABELS[id]}
-        </h1>
-        <p>{UI.placeholder}</p>
-      </article>
-    );
-  };
+/** Stage 1 stand-in: the page's name and its placeholder note. */
+export function PlaceholderPage({ headingId, page, content }: PlaceholderPageProps) {
+  return (
+    <article>
+      <h1 id={headingId} tabIndex={-1}>
+        {PAGE_LABELS[page]}
+      </h1>
+      <p>{content.note}</p>
+    </article>
+  );
 }

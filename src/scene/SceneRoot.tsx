@@ -1,8 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
+import { LANDING, SECTION_LINES, SECTION_TITLES } from '../content/scene';
 import { environment } from '../environment/registry';
-import { STOP_IDS, type StopId } from '../stops/contract';
+import { PAGE_IDS, type PageId } from '../pages/contract';
+import { SECTION_IDS } from '../sections/contract';
+import { PAGE_SECTION } from '../sections/layouts';
 import { appStore, useAppState } from '../store';
 import type { Quality } from '../visuals/shared';
 import { CameraRig } from './CameraRig';
@@ -10,23 +13,26 @@ import { pathPos } from './cameraPath';
 import { createFrameState } from './frameState';
 import { Marker } from './Marker';
 import { MarkerTracker } from './MarkerTracker';
-import { StopAnchor, type StopHandlers } from './StopAnchor';
+import { OverlayTracker } from './OverlayTracker';
+import { registerCaption, registerLanding } from './overlayRegistry';
+import { SectionAnchor, type SectionHandlers } from './SectionAnchor';
 import { BASE_FOV, DPR_LOW, DPR_RANGE, NARROW_VIEWPORT_PX, PERF_DECLINE_BELOW_FPS } from './tuning';
 
 const initialQuality = (): Quality => (window.innerWidth < NARROW_VIEWPORT_PX ? 'low' : 'high');
 
-/** The one persistent canvas: environment, stops and the camera rig. It never unmounts while pages come and go. */
-interface SceneRootProps extends StopHandlers {
+/** The one persistent canvas: environment, sections and the camera rig, with the landing text,
+ *  section captions and marker buttons over it. It never unmounts while pages come and go. */
+interface SceneRootProps extends SectionHandlers {
   /** An opaque page fully covers the scene. */
   hidden: boolean;
 }
 
 export function SceneRoot({ onOpen, hidden }: SceneRootProps) {
-  const { phase, stop } = useAppState();
+  const { phase, page } = useAppState();
   const [startQuality] = useState(initialQuality);
   const [quality, setQuality] = useState<Quality>(startQuality);
   const [dpr, setDpr] = useState<number | [number, number]>(DPR_RANGE);
-  const [hoveredMarker, setHoveredMarker] = useState<StopId | null>(null);
+  const [hoveredMarker, setHoveredMarker] = useState<PageId | null>(null);
   const frame = useMemo(createFrameState, []);
   const { World } = environment;
 
@@ -52,24 +58,38 @@ export function SceneRoot({ onOpen, hidden }: SceneRootProps) {
         onCreated={({ gl }) => gl.domElement.setAttribute('aria-hidden', 'true')}
       >
         <PerformanceMonitor bounds={() => [PERF_DECLINE_BELOW_FPS, Infinity]} onDecline={onDecline} />
-        <CameraRig frame={frame} phase={phase} stop={stop} onFlyInDone={onFlyInDone} onFlyOutDone={onFlyOutDone} />
+        <CameraRig frame={frame} phase={phase} page={page} onFlyInDone={onFlyInDone} onFlyOutDone={onFlyOutDone} />
         <MarkerTracker frame={frame} />
+        <OverlayTracker frame={frame} />
         <World pathT={frame.pathT} quality={quality} />
         <ambientLight intensity={0.6} />
         <directionalLight position={[5, 10, 5]} intensity={1.2} />
-        {STOP_IDS.map((id) => (
-          <StopAnchor
+        {SECTION_IDS.map((id) => (
+          <SectionAnchor
             key={id}
             id={id}
             proximity={frame.proximity[id]}
             quality={quality}
-            active={stop === id}
-            markerHovered={hoveredMarker === id}
+            active={page && PAGE_SECTION[page] === id ? page : null}
+            markerHovered={hoveredMarker && PAGE_SECTION[hoveredMarker] === id ? hoveredMarker : null}
             onOpen={onOpen}
           />
         ))}
       </Canvas>
-      {STOP_IDS.map((id) => (
+      <div className="landing" ref={registerLanding}>
+        <h1 className="landing-name">{LANDING.name}</h1>
+        <p className="landing-line">{LANDING.line}</p>
+        <p className="landing-cue" aria-hidden="true">
+          {LANDING.scrollCue}
+        </p>
+      </div>
+      {SECTION_IDS.map((id) => (
+        <div key={id} className="caption" ref={(el) => registerCaption(id, el)}>
+          <h2 className="caption-title">{SECTION_TITLES[id]}</h2>
+          <p className="caption-line">{SECTION_LINES[id]}</p>
+        </div>
+      ))}
+      {PAGE_IDS.map((id) => (
         <Marker
           key={id}
           id={id}

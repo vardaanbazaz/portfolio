@@ -1,33 +1,53 @@
 import { describe, expect, it } from 'vitest';
-import { STOP_PATHS, stopForPath } from '../../src/routes';
-import { STOP_IDS } from '../../src/stops/contract';
+import { PAGE_IDS } from '../../src/pages/contract';
+import { PAGE_PATHS, pageForPath, sectionForHash, sectionHash } from '../../src/routes';
+import { SECTION_IDS } from '../../src/sections/contract';
 
-describe('routes', () => {
-  it('maps every stop to its path and back', () => {
-    for (const id of STOP_IDS) expect(stopForPath(STOP_PATHS[id])).toBe(id);
+describe('page routes', () => {
+  it('maps every page to its path and back', () => {
+    for (const id of PAGE_IDS) expect(pageForPath(PAGE_PATHS[id])).toBe(id);
   });
 
   it('uses the agreed URL shape', () => {
-    expect(STOP_PATHS).toEqual({
+    expect(PAGE_PATHS).toEqual({
+      about: '/about',
       datavista: '/projects/datavista',
-      publications: '/publications',
+      'neuroinsight-ai': '/projects/neuroinsight-ai',
+      attrition: '/projects/attrition',
+      kanbanlight: '/projects/kanbanlight',
+      'unified-api-ingester': '/projects/unified-api-ingester',
       experience: '/experience',
+      publications: '/publications',
+      contact: '/contact',
     });
   });
 
-  it('gives every stop a distinct path', () => {
-    expect(new Set(Object.values(STOP_PATHS)).size).toBe(STOP_IDS.length);
+  it('gives every page a distinct path', () => {
+    expect(new Set(Object.values(PAGE_PATHS)).size).toBe(PAGE_IDS.length);
   });
 
-  it('opens no page for / or unknown paths', () => {
-    expect(stopForPath('/')).toBeNull();
-    expect(stopForPath('/projects')).toBeNull();
-    expect(stopForPath('/datavista')).toBeNull();
-    expect(stopForPath('/publications/extra')).toBeNull();
+  it('opens no page for /, /projects or unknown paths', () => {
+    expect(pageForPath('/')).toBeNull();
+    expect(pageForPath('/projects')).toBeNull();
+    expect(pageForPath('/datavista')).toBeNull();
+    expect(pageForPath('/publications/extra')).toBeNull();
   });
 
   it('ignores a trailing slash and letter case, like the router', () => {
-    expect(stopForPath('/publications/')).toBe('publications');
-    expect(stopForPath('/Projects/DataVista')).toBe('datavista');
+    expect(pageForPath('/publications/')).toBe('publications');
+    expect(pageForPath('/Projects/DataVista')).toBe('datavista');
+  });
+});
+
+describe('section hashes', () => {
+  it('maps every section to its hash and back', () => {
+    for (const id of SECTION_IDS) expect(sectionForHash(sectionHash(id))).toBe(id);
+    expect(sectionHash('projects')).toBe('#projects');
+  });
+
+  it('ignores an empty or unknown hash', () => {
+    expect(sectionForHash('')).toBeNull();
+    expect(sectionForHash('#')).toBeNull();
+    expect(sectionForHash('#datavista')).toBeNull();
   });
 });

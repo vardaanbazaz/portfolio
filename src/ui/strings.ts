@@ -1,18 +1,12 @@
-import type { StopId } from '../stops/contract';
+import { SITE_NAME } from '../content/scene';
 
-/** Interface labels only. Facts live in the content file. */
-export const SITE_NAME = 'Vardaan';
-
-export const STOP_LABELS: Record<StopId, string> = {
-  datavista: 'DataVista',
-  publications: 'Publications',
-  experience: 'Experience',
-};
-
+/** Interface labels only. Facts and scene text live in `src/content/`. */
 export const UI = {
-  openStop: (label: string) => `Open ${label}`,
+  openPage: (label: string) => `Open ${label}`,
   back: 'Back',
-  placeholder: 'Placeholder',
   mute: 'Mute',
+  menu: 'Menu',
+  menuLabel: 'Sections',
+  loading: 'Loading',
   pageTitle: (label: string) => `${label} · ${SITE_NAME}`,
 };

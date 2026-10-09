@@ -7,17 +7,26 @@
  */
 export const CAMERA_DAMPING = 4;
 
-/** Page height in viewport heights; more pages means more scrolling per stop. */
-export const SCROLL_PAGES = 9;
+/** Page height in viewport heights; more pages means more scrolling per section.
+ *  15 keeps about the same scroll distance between neighbouring sections as the three-stop prototype had. */
+export const SCROLL_PAGES = 15;
 
-/** How far ahead on the path (in t) the camera looks between stops. */
+/** How far ahead on the path (in t) the camera looks between sections. */
 export const LOOK_AHEAD = 0.06;
 
-/** Distance in t over which a stop's proximity rises from 0 to 1. */
-export const STOP_PROXIMITY_RADIUS = 0.12;
+/** Distance in t over which a section's proximity rises from 0 to 1. Also when its title and one-liner show.
+ *  At most half the gap between neighbouring sections, so two never overlap. */
+export const SECTION_PROXIMITY_RADIUS = 0.09;
 
-/** How far the camera turns toward a stop at full proximity (0 = never, 1 = straight at it). */
-export const STOP_LOOK_WEIGHT = 0.85;
+/** How far the camera turns toward a section at full proximity (0 = never, 1 = straight at it). */
+export const SECTION_LOOK_WEIGHT = 0.85;
+
+/** Path position (t) by which the landing text has faded out. */
+export const LANDING_FADE_T = 0.08;
+
+/** A section is not drawn while its bounding sphere is further than this from the camera.
+ *  Matches the grey-box fog's far distance per quality, so a section is culled only once fog hides it. */
+export const CULL_DISTANCE = { high: 45, low: 30 } as const;
 
 /** Vertical field of view in degrees on landscape screens. */
 export const BASE_FOV = 50;
@@ -39,7 +48,7 @@ export const DPR_LOW = 1;
 /** Sustained average frame rate below this drops quality to 'low' for the rest of the session. */
 export const PERF_DECLINE_BELOW_FPS = 45;
 
-/** Seconds for the camera to fly from the path to a stop's inspect pose (and back). */
+/** Seconds for the camera to fly from the path to a marker's inspect pose (and back). */
 export const FLY_SECONDS = 0.8;
 
 /** Seconds for the view to fade between the scene and a page. */
@@ -49,8 +58,11 @@ export const PAGE_FADE_SECONDS = 0.25;
 export const INSPECT_MARGIN = 1.35;
 export const INSPECT_ELEVATION = 0.35;
 
-/** A stop's marker is hidden below this proximity, so off-screen markers can't be tabbed to. */
+/** A marker is hidden below this section proximity, so off-screen markers can't be tabbed to. */
 export const MARKER_MIN_PROXIMITY = 0.2;
+
+/** Height of a marker button's anchor above the top of its box. */
+export const MARKER_LIFT = 0.4;
 
 /** Length in seconds of the fly-in and fly-out sweep. Long enough that a speaker waking up can't swallow it. */
 export const SWEEP_SECONDS = 0.35;
