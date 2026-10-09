@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router';
 import { LANDING, PAGE_LABELS, SECTION_LINES, SECTION_NOTES, SECTION_TITLES } from '../content/scene';
 import { CitationMeta } from '../pages/CitationMeta';
@@ -10,6 +10,7 @@ import { PAGE_PATHS, pageForPath, sectionForHash, sectionHash } from '../routes'
 import { SECTION_IDS } from '../sections/contract';
 import { PAGE_SECTION } from '../sections/layouts';
 import { ChunkView } from '../ui/ChunkView';
+import { removeLoadingScreen } from '../ui/loadingScreen';
 import { usePageHead } from '../ui/pageHead';
 import { UI } from '../ui/strings';
 
@@ -91,6 +92,10 @@ function FallbackPage({ page }: { page: PageId }) {
 function FallbackShell() {
   const { pathname, hash } = useLocation();
   usePageHead(pageForPath(pathname));
+
+  // The HTML site has rendered: the loading screen goes at once. A layout effect, so scrolling is unlocked before the
+  // effect below scrolls to a section.
+  useLayoutEffect(removeLoadingScreen, []);
 
   // Once the first view has rendered, fetch every page in the background, so following a link doesn't wait.
   useEffect(preloadPages, []);

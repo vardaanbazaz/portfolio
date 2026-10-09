@@ -1,5 +1,12 @@
 /** Feel constants. Change values here only; nothing else defines its own scroll easing. */
 
+/** The loading screen lifts at the latest this many seconds after the scene's first frame, even if some page and
+ *  panel chunks haven't arrived yet. Their fetch carries on, and a page still waiting shows its own loading line. */
+export const LOADING_SCREEN_LIMIT_SECONDS = 4;
+
+/** Seconds for the loading screen to fade out (none with reduced motion). */
+export const LOADING_SCREEN_FADE_SECONDS = 0.3;
+
 /**
  * How quickly the camera eases toward the scroll position, per second.
  * Higher is snappier, lower glides more. 4 closes about 98% of the gap in one second.

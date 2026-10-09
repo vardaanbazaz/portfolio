@@ -13,6 +13,8 @@ import {
   chunkPattern,
   expect,
   expectExploring,
+  holdChunks,
+  loadingScreen,
   marker,
   PAGE_CHUNKS,
   PANEL_CHUNKS,
@@ -50,35 +52,22 @@ function collectScripts(page: Page) {
   };
 }
 
-/** Holds back the browser's idle callbacks, so the background fetch waits until the test releases it. */
-const HOLD_IDLE = () => {
-  const w = window as unknown as { heldIdle: (() => void)[] };
-  w.heldIdle = [];
-  window.requestIdleCallback = (callback) => {
-    w.heldIdle.push(() => callback({ didTimeout: false, timeRemaining: () => 50 }));
-    return 0;
-  };
-};
-
-const releaseIdle = (page: Page) => page.evaluate(() => (window as unknown as { heldIdle: (() => void)[] }).heldIdle.forEach((run) => run()));
-
 const ALL_CONTENT = Object.keys(CONTENT);
 /** Experience's short content is the one exception: the scene shows it in its caption (see `src/content/scene.ts`). */
 const HELD_BACK = ALL_CONTENT.filter((id) => id !== 'experience');
 
-test('page content is not in the first download, and every page and panel is fetched once the scene is ready', async ({ page }) => {
+test('page content is not in the first download, and every page and panel is fetched once the scene code is in', async ({ page }) => {
   const scripts = collectScripts(page);
-  await page.addInitScript(HOLD_IDLE);
+  const chunks = await holdChunks(page, [...PAGE_CHUNKS, ...PANEL_CHUNKS]);
   await page.goto('/');
-  await waitForScene(page);
-  // The scene has drawn and asked for idle time to start the background fetch.
-  await expect.poll(() => page.evaluate(() => (window as unknown as { heldIdle: unknown[] }).heldIdle.length)).toBeGreaterThan(0);
-  await page.waitForLoadState('networkidle');
+  // The scene has drawn, and the background fetch has asked for its first chunk, which is held back.
+  await expect(loadingScreen(page)).toHaveAttribute('data-drawn', '', { timeout: 20_000 });
+  await expect.poll(chunks.requested).toBeGreaterThan(0);
 
   expect(scripts.contentFound().filter((id) => HELD_BACK.includes(id))).toEqual([]);
   expect(scripts.chunksFetched([...PAGE_CHUNKS, ...PANEL_CHUNKS])).toEqual([]);
 
-  await releaseIdle(page);
+  await chunks.release();
   await expect.poll(() => scripts.chunksFetched([...PAGE_CHUNKS, ...PANEL_CHUNKS])).toEqual([...PAGE_CHUNKS, ...PANEL_CHUNKS]);
   // The content searched for above really is in the chunks, so its absence before meant something.
   await expect.poll(() => scripts.contentFound()).toEqual(ALL_CONTENT);

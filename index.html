@@ -1,15 +1,97 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="robots" content="noindex" />
-    <meta name="description" content="Computer vision · full-stack web · C/DSP systems" />
-    <link rel="icon" href="data:," />
-    <title>Vardaan</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<html lang="en" class="booting">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <meta name="description" content="Computer vision · full-stack web · C/DSP systems" />
+  <link rel="icon" href="data:," />
+  <title>Vardaan</title>
+  <!-- The loading screen's styles live here, not in src/index.css, so it shows the moment the document arrives.
+         Grey-box: colours match --bg, --text and --line in src/index.css. src/ui/loadingScreen.ts fills and lifts it. -->
+  <style>
+    html.booting {
+      overflow: hidden;
+    }
+
+    .loading-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: #0d0d0f;
+      color: #e8e8ea;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    /* Fading out: already unlocked, so presses go through to the site. */
+    .loading-screen-out {
+      pointer-events: none;
+    }
+
+    .loading-screen-name {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .loading-screen-bar {
+      width: min(240px, 60vw);
+      height: 2px;
+      background: #3a3a3f;
+      overflow: hidden;
+    }
+
+    .loading-screen-fill {
+      height: 100%;
+      background: #e8e8ea;
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.2s ease-out;
+    }
+
+    .loading-screen-status {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .loading-screen-fill {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="loading-screen" class="loading-screen">
+    <p class="loading-screen-name">Vardaan</p>
+    <div class="loading-screen-bar" aria-hidden="true">
+      <div class="loading-screen-fill"></div>
+    </div>
+    <noscript>
+      <p>This site needs JavaScript. Turn it on and reload.</p>
+      <style>
+        .loading-screen-bar,
+        .loading-screen-status {
+          display: none;
+        }
+      </style>
+    </noscript>
+    <p class="loading-screen-status" role="status">Loading</p>
+  </div>
+  <!-- Inert until the loading screen lifts: nothing behind it can be focused or clicked. -->
+  <div id="root" inert></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
 </html>

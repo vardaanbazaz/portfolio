@@ -91,8 +91,8 @@ export function lazyChunk<P>(importer: () => Promise<{ default: ComponentType<P>
 /** Starts a load nobody waits for. A failure is shown only when the chunk is opened, by its own load. */
 export const prefetch = (load: () => Promise<unknown>) => void load().catch(() => {});
 
-/** Runs `run` once the browser is idle, or after `timeoutMs` at the latest (a scene drawing every frame may leave
- *  it no idle time). Falls back to a timer where idle callbacks don't exist. */
+/** Runs `run` once the browser is idle, or after `timeoutMs` at the latest. Falls back to a timer where idle
+ *  callbacks don't exist. */
 export function whenIdle(run: () => void, timeoutMs = 2000) {
   if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(run, { timeout: timeoutMs });
   else setTimeout(run, 200);

@@ -2,7 +2,8 @@ import { lazyChunk, type LazyChunk } from '../ui/chunk';
 import type { PageId, PageProps } from './contract';
 
 /** Each page and its content are their own chunk, kept out of the first download. It is fetched in the background
- *  once the site has drawn, or sooner when its marker is hovered, focused or pressed (see `src/preload.ts`). */
+ *  (on the scene site as soon as the scene's code has loaded, on the HTML site once it is idle), or sooner when its
+ *  marker is hovered, focused or pressed (see `src/preload.ts`). */
 export const pages: Record<PageId, LazyChunk<PageProps>> = {
   about: lazyChunk(() => import('./AboutPage')),
   datavista: lazyChunk(() => import('./DataVistaPage')),

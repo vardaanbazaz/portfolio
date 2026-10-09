@@ -1,5 +1,6 @@
-import { Component, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Component, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { LazyChunk } from './chunk';
+import { contentShown } from './loadingScreen';
 import { UI } from './strings';
 
 /** A load faster than this shows no "Loading" line, so it can't flash. */
@@ -24,7 +25,15 @@ interface LoadFailedProps {
   retrying: boolean;
 }
 
+/** Tells the loading screen the view has something to show. A layout effect, so on a direct page link the screen
+ *  lifts (and `inert` clears) before any effect moves focus into the view. */
+function Shown() {
+  useLayoutEffect(contentShown, []);
+  return null;
+}
+
 function LoadFailed({ onRetry, retrying }: LoadFailedProps) {
+  useLayoutEffect(contentShown, []);
   const button = useRef<HTMLButtonElement>(null);
   // Focus moves here as it would to the content's heading, so a keyboard visitor lands on the way out.
   useEffect(() => button.current?.focus(), []);
@@ -102,6 +111,7 @@ export function ChunkView<P extends object>({ chunk, props, after }: ChunkViewPr
     <LoadBoundary key={attempt} onRetry={retry} retrying={retrying}>
       <Suspense fallback={<DelayedLoading />}>
         <Content {...props} />
+        <Shown />
         {after}
       </Suspense>
     </LoadBoundary>

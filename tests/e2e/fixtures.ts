@@ -1,4 +1,4 @@
-import { test as base, expect, type Page } from '@playwright/test';
+import { test as base, expect, type Page, type Route } from '@playwright/test';
 import { SECTION_TITLES } from '../../src/content/scene';
 import { SECTION_T } from '../../src/scene/cameraPath';
 import type { SectionId } from '../../src/sections/contract';
@@ -75,7 +75,25 @@ export const PANEL_CHUNKS = ['RolePanel', 'CitationPanel'];
 /** A chunk's file, with or without the query a retry adds. */
 export const chunkPattern = (name: string) => new RegExp(`/assets/${name}-[\\w-]+\\.js(\\?.*)?$`);
 
-/** The scene's canvas has loaded and drawn. */
+/** Holds back every request for the named chunks until `release`; later requests then go straight through. */
+export async function holdChunks(page: Page, names: string[]) {
+  const held: Route[] = [];
+  let released = false;
+  for (const name of names) await page.route(chunkPattern(name), (route) => (released ? route.continue() : void held.push(route)));
+  return {
+    requested: () => held.length,
+    release: async () => {
+      released = true;
+      await Promise.all(held.splice(0).map((route) => route.continue()));
+    },
+  };
+}
+
+/** The loading screen (see `index.html`). */
+export const loadingScreen = (page: Page) => page.locator('#loading-screen');
+
+/** The scene's canvas has loaded and drawn, and the loading screen is gone. */
 export async function waitForScene(page: Page) {
   await expect(page.locator('.scene canvas')).toBeAttached({ timeout: 20_000 });
+  await expect(loadingScreen(page)).toHaveCount(0, { timeout: 20_000 });
 }

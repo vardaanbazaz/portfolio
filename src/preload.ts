@@ -10,23 +10,26 @@ const chunkFor = (page: PageId, item: ItemId | null | undefined) => (opensPanel(
 export const prefetchTarget = (page: PageId, item?: ItemId | null) => prefetch(chunkFor(page, item).load);
 
 /** Fetches the chunks one at a time, so the background never crowds out a chunk the visitor is waiting for.
- *  A failure is skipped; that chunk is fetched again when it opens. */
-async function loadInTurn(loads: (() => Promise<unknown>)[]) {
-  for (const load of loads) await load().catch(() => {});
+ *  `onLoaded` runs after each one that arrives. A failure is skipped; that chunk is fetched again when it opens. */
+async function loadInTurn(loads: (() => Promise<unknown>)[], onLoaded: () => void = () => {}) {
+  for (const load of loads) await load().then(onLoaded, () => {});
 }
 
 let started = false;
 
-/** Once the browser is idle, fetches every chunk in `loads` in the background. Only the first call does anything. */
-function preloadWhenIdle(loads: (() => Promise<unknown>)[]) {
+/** Only the first call to either preload does anything. */
+function startOnce(run: () => void) {
   if (started) return;
   started = true;
-  whenIdle(() => void loadInTurn(loads));
+  run();
 }
 
-/** The scene site: every page and every panel, so none of them waits on the network when opened. */
-export const preloadAll = () =>
-  preloadWhenIdle([...PAGE_IDS.map((id) => pages[id].load), ...[...new Set(PANEL_ITEMS.map((id) => panels[id]))].map((p) => p.load)]);
+/** The scene site's chunks: every page and every panel (two items can share a panel's chunk). */
+export const SCENE_CHUNK_LOADS = [...PAGE_IDS.map((id) => pages[id].load), ...[...new Set(PANEL_ITEMS.map((id) => panels[id]))].map((p) => p.load)];
 
-/** The HTML site has no panels: every page. */
-export const preloadPages = () => preloadWhenIdle(PAGE_IDS.map((id) => pages[id].load));
+/** The scene site: fetches every page and panel at once, so none of them waits on the network when opened. The
+ *  loading screen counts each one as it arrives. */
+export const preloadAll = (onLoaded: () => void) => startOnce(() => void loadInTurn(SCENE_CHUNK_LOADS, onLoaded));
+
+/** The HTML site has no panels: once the browser is idle, every page. */
+export const preloadPages = () => startOnce(() => whenIdle(() => void loadInTurn(PAGE_IDS.map((id) => pages[id].load))));
