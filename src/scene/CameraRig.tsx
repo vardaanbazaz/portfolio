@@ -8,6 +8,7 @@ import { SECTION_IDS } from '../sections/contract';
 import { cameraPose, dampTowards, fovForAspect, scrollProgress, SECTION_T, sectionProximity } from './cameraPath';
 import type { FrameState } from './frameState';
 import { inspectPose, sectionCentreHeights } from './layout';
+import { takeCameraSnap } from './menuTravel';
 import { CAMERA_DAMPING, FLY_SECONDS } from './tuning';
 
 const pathPosition = new Vector3();
@@ -86,7 +87,9 @@ export function CameraRig({ frame, phase, page, onFlyInDone, onFlyOutDone }: Cam
   useFrame((_, delta) => {
     const p = scrollProgress(window.scrollY, maxScroll.current);
     // First frame starts at the current scroll position, so a reload or deep link doesn't glide from the start.
-    const t = started.current ? dampTowards(frame.pathT.current, p, CAMERA_DAMPING, delta) : p;
+    // A reduced-motion menu jump also lands at once.
+    const snap = takeCameraSnap();
+    const t = started.current && !snap ? dampTowards(frame.pathT.current, p, CAMERA_DAMPING, delta) : p;
     started.current = true;
 
     frame.pathT.current = t;

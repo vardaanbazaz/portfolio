@@ -8,6 +8,7 @@ import { pageLoaders } from './pages/registry';
 import { PAGE_PATHS, pageForPath, sectionForHash, sectionHash } from './routes';
 import { nearestSection, scrollProgress, SECTION_T } from './scene/cameraPath';
 import { focusMarker } from './scene/markerRegistry';
+import { isTravelling, stopTravel, travelTo } from './scene/menuTravel';
 import { SceneRoot } from './scene/SceneRoot';
 import { SCROLL_PAGES } from './scene/tuning';
 import type { SectionId } from './sections/contract';
@@ -25,26 +26,35 @@ const maxScroll = () => Math.max(0, document.documentElement.scrollHeight - wind
 /** Where the menu can send the camera: a section, or the top of the path (the landing view). */
 type Destination = SectionId | 'top';
 
-/** Scrolls to a destination's point on the path; the camera eases there from wherever it is. */
-const scrollToDestination = (to: Destination) => window.scrollTo(0, to === 'top' ? 0 : SECTION_T[to] * maxScroll());
-
 /** While the visitor explores `/`, keeps the hash on the nearest section (none on the landing stretch),
- *  replacing the history entry only when that section changes. A reload then starts there. */
+ *  replacing the history entry only when that section changes. A reload then starts there.
+ *  Paused during a menu travel; returns the sync, which the travel runs once when it arrives or is cancelled. */
 function useHashFollowsScroll() {
   const navigate = useNavigate();
+  // navigate changes identity with the pathname; a ref keeps syncHash (and the travel built on it) stable.
+  const navigateRef = useRef(navigate);
+  useLayoutEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
+
+  const syncHash = useCallback(() => {
+    // window.location, not the router's location: it updates the moment navigate() runs,
+    // so a burst of scroll events can't replace the entry twice for one change.
+    if (appStore.get().phase !== 'exploring' || window.location.pathname !== '/') return;
+    const section = nearestSection(scrollProgress(window.scrollY, maxScroll()));
+    if (section === sectionForHash(window.location.hash)) return;
+    navigateRef.current({ pathname: '/', hash: section ? sectionHash(section) : '' }, { replace: true });
+  }, []);
 
   useEffect(() => {
     const onScroll = () => {
-      // window.location, not the router's location: it updates the moment navigate() runs,
-      // so a burst of scroll events can't replace the entry twice for one change.
-      if (appStore.get().phase !== 'exploring' || window.location.pathname !== '/') return;
-      const section = nearestSection(scrollProgress(window.scrollY, maxScroll()));
-      if (section === sectionForHash(window.location.hash)) return;
-      navigate({ pathname: '/', hash: section ? sectionHash(section) : '' }, { replace: true });
+      if (!isTravelling()) syncHash();
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
-  }, [navigate]);
+  }, [syncHash]);
+
+  return syncHash;
 }
 
 /** Locks page scroll whenever the visitor isn't exploring, and puts the scroll position back on unlock. */
@@ -77,7 +87,7 @@ function AppShell({ bootT }: { bootT: number | null }) {
   const navigate = useNavigate();
   const closeRequested = useRef(false);
   /** Destination chosen in the menu while a page was open or a flight was running; travelled to once exploring. */
-  const travelTo = useRef<Destination | null>(null);
+  const pendingTravel = useRef<Destination | null>(null);
 
   // The URL is the source of truth: every change (marker, close, menu, Back, Forward) goes through here.
   useEffect(() => {
@@ -88,8 +98,20 @@ function AppShell({ bootT }: { bootT: number | null }) {
     document.title = route ? UI.pageTitle(PAGE_LABELS[route]) : SITE_NAME;
   }, [route]);
 
+  // Leaving the path (marker, Back to a page URL) stops a menu travel before the scroll lock saves the position.
+  useLayoutEffect(() => {
+    if (phase !== 'exploring') stopTravel();
+  }, [phase]);
+
   useScrollLock(phase !== 'exploring', bootT);
-  useHashFollowsScroll();
+  const syncHash = useHashFollowsScroll();
+
+  /** Glides to a destination's point on the path; the hash is set once, on arrival (or where a cancel leaves it). */
+  const travel = useCallback(
+    (to: Destination) =>
+      travelTo(to === 'top' ? 0 : SECTION_T[to] * maxScroll(), maxScroll(), { onArrive: syncHash, onCancel: syncHash }),
+    [syncHash],
+  );
 
   // A sweep held for a context that isn't running yet is dropped when its flight ends.
   useEffect(() => {
@@ -105,15 +127,15 @@ function AppShell({ bootT }: { bootT: number | null }) {
   useEffect(() => {
     if (phase === 'pageOpen') closeRequested.current = false;
     if (phase !== 'exploring') return;
-    const destination = travelTo.current;
+    const destination = pendingTravel.current;
     if (destination) {
       // Runs after useScrollLock has restored the old position, so the travel wins.
-      travelTo.current = null;
-      scrollToDestination(destination);
+      pendingTravel.current = null;
+      travel(destination);
     } else if (returnFocus) {
       focusMarker(returnFocus);
     }
-  }, [phase, returnFocus]);
+  }, [phase, returnFocus, travel]);
 
   const openPage = useCallback(
     (id: PageId) => {
@@ -132,15 +154,18 @@ function AppShell({ bootT }: { bootT: number | null }) {
     else navigate(-1);
   }, [location.key, navigate]);
 
-  // Replaces the current entry with `/#section` (or plain `/` for the top), so no history entry is added.
-  // If a page is open (or a flight is running), that closes it, and the camera travels once it is back on the path.
+  // On the path: travel there, and the hash follows on arrival. If a page is open (or a flight is running),
+  // replace the entry with plain `/` (no history entry added), which closes it; the travel starts once back on the path.
   const goTo = useCallback(
     (to: Destination) => {
-      navigate({ pathname: '/', hash: to === 'top' ? '' : sectionHash(to) }, { replace: true });
-      if (appStore.get().phase === 'exploring') scrollToDestination(to);
-      else travelTo.current = to;
+      if (appStore.get().phase === 'exploring') {
+        travel(to);
+        return;
+      }
+      navigate('/', { replace: true });
+      pendingTravel.current = to;
     },
-    [navigate],
+    [navigate, travel],
   );
   const goToTop = useCallback(() => goTo('top'), [goTo]);
 

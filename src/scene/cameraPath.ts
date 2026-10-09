@@ -8,6 +8,9 @@ import {
   PORTRAIT_PULLBACK_MAX,
   LANDING_FADE_T,
   LANDING_STRETCH_T,
+  MENU_TRAVEL_MAX_SECONDS,
+  MENU_TRAVEL_MIN_SECONDS,
+  MENU_TRAVEL_SECONDS_PER_GAP,
   SECTION_LOOK_WEIGHT,
   SECTION_PROXIMITY_RADIUS,
 } from './tuning';
@@ -95,6 +98,16 @@ export function nearestSection(t: number, landingEndT = LANDING_STRETCH_T): Sect
     }
   }
   return nearest;
+}
+
+/** Path distance (t) between neighbouring sections. */
+export const SECTION_GAP_T = SECTION_T.projects - SECTION_T.about;
+
+/** Seconds a menu travel takes between two path positions: scaled by section gaps, clamped; 0 when already there. */
+export function travelSeconds(fromT: number, toT: number): number {
+  const gaps = Math.abs(toT - fromT) / SECTION_GAP_T;
+  if (gaps === 0) return 0;
+  return MathUtils.clamp(gaps * MENU_TRAVEL_SECONDS_PER_GAP, MENU_TRAVEL_MIN_SECONDS, MENU_TRAVEL_MAX_SECONDS);
 }
 
 /** Opacity of the landing text: 1 at the start of the path, 0 from `fadeT` on. */

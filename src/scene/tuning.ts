@@ -11,6 +11,13 @@ export const CAMERA_DAMPING = 4;
  *  15 keeps about the same scroll distance between neighbouring sections as the three-stop prototype had. */
 export const SCROLL_PAGES = 15;
 
+/** Menu travel: the scroll position glides to the chosen section, taking this many seconds per section gap,
+ *  clamped to the min and max. The camera then eases after the scroll as usual. */
+export const MENU_TRAVEL_SECONDS_PER_GAP = 1.2;
+export const MENU_TRAVEL_MIN_SECONDS = 1.2;
+export const MENU_TRAVEL_MAX_SECONDS = 5;
+export const MENU_TRAVEL_EASE = 'easeInOut' as const;
+
 /** How far ahead on the path (in t) the camera looks between sections. */
 export const LOOK_AHEAD = 0.06;
 

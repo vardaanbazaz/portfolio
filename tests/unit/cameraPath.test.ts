@@ -8,14 +8,24 @@ import {
   nearestSection,
   pathPos,
   scrollProgress,
+  SECTION_GAP_T,
   SECTION_T,
   sectionGroundPoint,
   sectionProximity,
+  travelSeconds,
 } from '../../src/scene/cameraPath';
 import { SECTION_IDS } from '../../src/sections/contract';
 import { sectionCentreHeights, sectionToWorld } from '../../src/scene/layout';
 import { sectionLayouts } from '../../src/sections/layouts';
-import { BASE_FOV, LANDING_STRETCH_T, MAX_FOV, SECTION_PROXIMITY_RADIUS } from '../../src/scene/tuning';
+import {
+  BASE_FOV,
+  LANDING_STRETCH_T,
+  MAX_FOV,
+  MENU_TRAVEL_MAX_SECONDS,
+  MENU_TRAVEL_MIN_SECONDS,
+  MENU_TRAVEL_SECONDS_PER_GAP,
+  SECTION_PROXIMITY_RADIUS,
+} from '../../src/scene/tuning';
 
 describe('scrollProgress', () => {
   it('maps scroll offset to 0..1 and clamps', () => {
@@ -168,5 +178,31 @@ describe('nearestSection', () => {
     const mid = (SECTION_T.about + SECTION_T.projects) / 2;
     expect(nearestSection(mid - 0.001)).toBe('about');
     expect(nearestSection(mid + 0.001)).toBe('projects');
+  });
+});
+
+describe('travelSeconds', () => {
+  it('spaces the sections evenly, so one gap is one gap anywhere on the path', () => {
+    for (let i = 1; i < SECTION_IDS.length; i++) {
+      expect(SECTION_T[SECTION_IDS[i]] - SECTION_T[SECTION_IDS[i - 1]]).toBeCloseTo(SECTION_GAP_T);
+    }
+  });
+
+  it('takes the per-gap time for one gap, in either direction', () => {
+    expect(travelSeconds(SECTION_T.about, SECTION_T.projects)).toBeCloseTo(MENU_TRAVEL_SECONDS_PER_GAP);
+    expect(travelSeconds(SECTION_T.projects, SECTION_T.about)).toBeCloseTo(MENU_TRAVEL_SECONDS_PER_GAP);
+  });
+
+  it('scales with distance: four gaps take four times as long', () => {
+    expect(travelSeconds(SECTION_T.about, SECTION_T.contact)).toBeCloseTo(4 * MENU_TRAVEL_SECONDS_PER_GAP);
+  });
+
+  it('never goes below the minimum or above the maximum', () => {
+    expect(travelSeconds(SECTION_T.about, SECTION_T.about + 0.01)).toBe(MENU_TRAVEL_MIN_SECONDS);
+    expect(travelSeconds(0, 1)).toBe(MENU_TRAVEL_MAX_SECONDS);
+  });
+
+  it('is 0 when already there', () => {
+    expect(travelSeconds(SECTION_T.experience, SECTION_T.experience)).toBe(0);
   });
 });
