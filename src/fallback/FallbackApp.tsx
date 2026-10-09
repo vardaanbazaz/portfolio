@@ -27,7 +27,12 @@ export function FallbackHome() {
     <main className="page page-static" aria-labelledby={HOME_HEADING_ID}>
       <div className="page-column">
         <h1 id={HOME_HEADING_ID}>{LANDING.name}</h1>
-        <p>{LANDING.line}</p>
+        <p className="verse-line" lang="sa">
+          {LANDING.line}
+        </p>
+        <p className="muted verse-gloss">
+          {LANDING.gloss.text} <cite>{LANDING.gloss.source}</cite>
+        </p>
         <p className="muted">{LANDING.subline}</p>
 
         <nav aria-label={UI.menuLabel}>

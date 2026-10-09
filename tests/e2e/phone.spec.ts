@@ -1,4 +1,6 @@
 import type { Page } from '@playwright/test';
+import { LANDING } from '../../src/content/scene';
+import { VERSE } from '../../src/content/verse';
 import { PAGE_IDS } from '../../src/pages/contract';
 import { PAGE_PATHS } from '../../src/routes';
 import { SECTION_IDS } from '../../src/sections/contract';
@@ -42,6 +44,44 @@ test('at 390 px, no section or page scrolls sideways, and markers are at least 4
   }
 });
 
+/** The element's box stays inside the viewport, and each of its words sits on one line: breaks only at spaces. */
+async function expectWrapsAtSpaces(page: Page, selector: string) {
+  const { left, right, width, brokenWords } = await page.locator(selector).evaluate((el) => {
+    const text = el.firstChild!;
+    const words: [number, number][] = [];
+    for (const match of text.textContent!.matchAll(/\S+/g)) words.push([match.index, match.index + match[0].length]);
+    const brokenWords = words.filter(([start, end]) => {
+      const range = document.createRange();
+      range.setStart(text, start);
+      range.setEnd(text, end);
+      return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size !== 1;
+    }).length;
+    const box = el.getBoundingClientRect();
+    return { left: box.left, right: box.right, width: window.innerWidth, brokenWords };
+  });
+  expect(left).toBeGreaterThanOrEqual(0);
+  expect(right).toBeLessThanOrEqual(width);
+  expect(brokenWords, `words broken across lines in ${selector}`).toBe(0);
+}
+
+test('at 390 px, the landing verse line wraps at spaces, and the landing text clears the scroll cue', async ({ page }) => {
+  const fonts: string[] = [];
+  page.on('request', (request) => void (request.resourceType() === 'font' && fonts.push(request.url())));
+  await page.goto('/');
+  await waitForScene(page);
+  const line = page.locator('.landing-line');
+  await expect(line).toBeVisible();
+  await expect(line).toHaveAttribute('lang', 'sa');
+  await expect(line).toHaveText(LANDING.line);
+  await expect(page.locator('.landing-gloss')).toHaveText(`${LANDING.gloss.text} ${LANDING.gloss.source}`);
+  await expectWrapsAtSpaces(page, '.landing-line');
+
+  const textBottom = (await page.locator('.landing-subline').boundingBox())!;
+  const cue = (await page.locator('.landing-cue').boundingBox())!;
+  expect(textBottom.y + textBottom.height, 'landing text runs into the scroll cue').toBeLessThanOrEqual(cue.y);
+  expect(fonts, 'font requests').toEqual([]);
+});
+
 test.describe('HTML site', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
@@ -54,5 +94,26 @@ test.describe('HTML site', () => {
       await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toBeVisible();
       await expectNoSidewaysScroll(page, `fallback ${PAGE_PATHS[id]}`);
     }
+  });
+
+  test('at 390 px, the HTML home and About show the verse, marked Sanskrit, wrapping at spaces', async ({ page }) => {
+    await page.goto('/');
+    const line = page.locator('main p[lang="sa"]');
+    await expect(line).toHaveText(LANDING.line);
+    await expect(page.locator('main .verse-gloss')).toHaveText(`${LANDING.gloss.text} ${LANDING.gloss.source}`);
+    await expectWrapsAtSpaces(page, 'main p[lang="sa"]');
+
+    await page.goto(PAGE_PATHS.about);
+    const quote = page.getByRole('main').locator('blockquote[lang="sa"]');
+    await expect(quote).toHaveText(VERSE.lines.join(''));
+    await expect(quote.locator('br')).toHaveCount(1);
+    await expect(page.getByRole('main').locator('figcaption')).toHaveText(`${VERSE.translation.join(' ')} ${VERSE.source}`);
+    // Under the heading, above Education.
+    const order = await page
+      .getByRole('main')
+      .locator('h1, figure, h2')
+      .evaluateAll((els) => els.map((el) => el.tagName));
+    expect(order.slice(0, 3)).toEqual(['H1', 'FIGURE', 'H2']);
+    await expect(page.getByRole('main').getByRole('heading', { level: 2 }).first()).toHaveText('Education');
   });
 });

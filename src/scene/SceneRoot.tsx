@@ -97,7 +97,12 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
       </Canvas>
       <div className="landing" ref={registerLanding}>
         <h1 className="landing-name">{LANDING.name}</h1>
-        <p className="landing-line">{LANDING.line}</p>
+        <p className="landing-line" lang="sa">
+          {LANDING.line}
+        </p>
+        <p className="landing-gloss verse-gloss">
+          {LANDING.gloss.text} <cite>{LANDING.gloss.source}</cite>
+        </p>
         <p className="landing-subline">{LANDING.subline}</p>
         <p className="landing-cue" aria-hidden="true">
           <span className="landing-cue-label">{LANDING.scrollCue.label}</span>

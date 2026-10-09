@@ -84,7 +84,11 @@ describe('fallback home', () => {
 
   it('shows the landing text', () => {
     expect(html).toContain(`<h1 id="fallback-title">${LANDING.name}</h1>`);
+    expect(html).toContain(`<p class="verse-line" lang="sa">${LANDING.line}</p>`);
+    expect(html).toContain(`<p class="muted verse-gloss">${LANDING.gloss.text} <cite>${LANDING.gloss.source}</cite></p>`);
     expect(html).toContain(LANDING.subline);
+    expect(html.indexOf(LANDING.line)).toBeLessThan(html.indexOf(LANDING.gloss.text));
+    expect(html.indexOf(LANDING.gloss.text)).toBeLessThan(html.indexOf(LANDING.subline));
   });
 
   it('links every page', () => {

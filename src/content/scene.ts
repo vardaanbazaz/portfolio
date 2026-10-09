@@ -1,19 +1,22 @@
 import type { ItemId, PageId } from '../pages/contract';
 import type { SectionId } from '../sections/contract';
 import { content as experience } from './pages/experience';
+import { VERSE, VERSE_FIRST_LINE } from './verse';
 
 /**
  * Text the scene shows. Loaded with the scene; each page's own content lives in `src/content/pages/`
  * and loads only when that page or one of its panels opens. The one exception is Experience's short content,
  * which the scene loads too for its caption's second line.
- * PLACEHOLDER marks text that is still to come from Vardaan.
  */
 
 export const SITE_NAME = 'Vardaan';
 
 export const LANDING = {
   name: SITE_NAME,
-  line: 'Placeholder line', // PLACEHOLDER
+  /** In Devanagari; shown with lang="sa". From the verse, src/content/verse.ts. */
+  line: VERSE_FIRST_LINE,
+  /** The line's translation, then its source. */
+  gloss: { text: VERSE.translation[0], source: VERSE.source },
   subline: 'Computer vision · full-stack web · C/DSP systems',
   /** Shown as the word above the arrow. Hidden from screen readers; the menu is their way through. */
   scrollCue: { label: 'Scroll', arrow: '↓' },

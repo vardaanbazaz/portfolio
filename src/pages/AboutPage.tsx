@@ -1,5 +1,6 @@
 import { content } from '../content/pages/about';
 import { PAGE_LABELS } from '../content/scene';
+import { VERSE } from '../content/verse';
 import { UI } from '../ui/strings';
 import type { PageProps } from './contract';
 import { LinkList } from './LinkList';
@@ -11,6 +12,21 @@ export default function AboutPage({ headingId }: PageProps) {
       <h1 id={headingId} tabIndex={-1}>
         {PAGE_LABELS.about}
       </h1>
+
+      <figure className="verse">
+        <blockquote lang="sa">
+          <p className="verse-line">
+            {VERSE.lines[0]}
+            <br />
+            {VERSE.lines[1]}
+          </p>
+        </blockquote>
+        <figcaption>
+          <p className="muted verse-gloss">
+            {VERSE.translation.join(' ')} <cite>{VERSE.source}</cite>
+          </p>
+        </figcaption>
+      </figure>
 
       <section>
         <h2>{UI.education}</h2>
