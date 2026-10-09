@@ -1,6 +1,22 @@
 :root {
   color-scheme: dark;
   --bg: #0d0d0f;
+  --panel: #141417;
+  --text: #e8e8ea;
+  --muted: #9a9aa2;
+  --line: #3a3a3f;
+  --focus: #ffffff;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+}
+
+html {
+  /* Keeps the scrollbar's space reserved, so locking scroll doesn't shift the layout. */
+  scrollbar-gutter: stable;
+}
+
+html.scroll-locked {
+  overflow: hidden;
 }
 
 html,
@@ -9,13 +25,101 @@ body {
   background: var(--bg);
 }
 
+button {
+  font: inherit;
+  color: inherit;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 16px;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--muted);
+}
+
+button:focus-visible,
+h1:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Own stacking context, so nothing in the scene layer can rise above the overlay and controls. */
 .scene {
   position: fixed;
   inset: 0;
+  z-index: 0;
 }
 
 /* Sets the scrollable height that drives the camera. svh keeps it steady while mobile address bars show and hide. */
 .scroll-spacer {
   height: calc(var(--pages) * 100vh);
   height: calc(var(--pages) * 100svh);
+}
+
+.marker {
+  /* Placed every frame by MarkerTracker; hidden until its stop is in view. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  white-space: nowrap;
+  background: rgb(20 20 23 / 0.8);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.55);
+  cursor: auto;
+}
+
+.overlay-panel {
+  box-sizing: border-box;
+  width: min(880px, 100% - 64px);
+  height: calc(100svh - 64px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px 32px 48px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.overlay-close {
+  float: right;
+}
+
+.overlay-panel h1 {
+  margin-top: 0;
+}
+
+@media (max-width: 767px) {
+  .overlay-panel {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    padding: 16px 16px 48px;
+  }
+}
+
+.mute-toggle {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 20;
+}
+
+/* Pressed means muted. */
+.mute-toggle[aria-pressed='true'] {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
 }

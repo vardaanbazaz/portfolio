@@ -8,7 +8,7 @@
 export const CAMERA_DAMPING = 4;
 
 /** Page height in viewport heights; more pages means more scrolling per stop. */
-export const SCROLL_PAGES = 6;
+export const SCROLL_PAGES = 9;
 
 /** How far ahead on the path (in t) the camera looks between stops. */
 export const LOOK_AHEAD = 0.06;
@@ -38,3 +38,16 @@ export const DPR_LOW = 1;
 
 /** Sustained average frame rate below this drops quality to 'low' for the rest of the session. */
 export const PERF_DECLINE_BELOW_FPS = 45;
+
+/** Seconds for the camera to fly from the path to a stop's inspect pose (and back). */
+export const FLY_SECONDS = 0.8;
+
+/** Seconds for a page overlay to fade in or out. */
+export const OVERLAY_SECONDS = 0.25;
+
+/** Inspect pose: distance multiplier on the fit-to-frame distance, and how far above level the camera sits (0 = level). */
+export const INSPECT_MARGIN = 1.35;
+export const INSPECT_ELEVATION = 0.35;
+
+/** A stop's marker is hidden below this proximity, so off-screen markers can't be tabbed to. */
+export const MARKER_MIN_PROXIMITY = 0.2;
