@@ -276,6 +276,15 @@ h2:focus-visible,
   list-style: none;
 }
 
+.contents {
+  padding: 0;
+  list-style: none;
+}
+
+.contents li + li {
+  margin-top: 4px;
+}
+
 .contact-email {
   font-size: 1.25rem;
   overflow-wrap: anywhere;

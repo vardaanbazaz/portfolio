@@ -1,10 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { content as datavista } from '../../src/content/pages/datavista';
 import { content as experience } from '../../src/content/pages/experience';
 import { content as publications } from '../../src/content/pages/publications';
-import { ITEM_LABELS, markerLabel, PAGE_LABELS, SECTION_LINES, SECTION_NOTES, SECTION_TITLES } from '../../src/content/scene';
+import {
+  ITEM_LABELS,
+  markerLabel,
+  PAGE_LABELS,
+  PROJECT_STATUS,
+  projectsCaption,
+  SECTION_LINES,
+  SECTION_NOTES,
+  SECTION_TITLES,
+} from '../../src/content/scene';
 import { ITEM_PAGE, itemHeadingId, opensPanel, PAGE_IDS, PAGE_ITEMS, PANEL_ITEMS } from '../../src/pages/contract';
+import DataVistaPage from '../../src/pages/DataVistaPage';
 import PublicationsPage from '../../src/pages/PublicationsPage';
 import { citationFor } from '../../src/panels/citationItem';
 import { roleFor } from '../../src/panels/roleItem';
@@ -134,6 +145,36 @@ describe('Publications page', () => {
     expect(html).not.toContain(itemHeadingId('web-page-linker'));
     expect(html).not.toContain(linker.title);
     expect(html).not.toContain(linker.doi);
+  });
+});
+
+describe('DataVista page', () => {
+  const html = renderToStaticMarkup(createElement(DataVistaPage, { headingId: 'title' }));
+
+  it('links each contents entry to a section heading on the page', () => {
+    for (const section of datavista.sections) {
+      expect(html).toContain(`href="#${section.id}"`);
+      expect(html).toContain(`<h2 id="${section.id}" tabindex="-1">`);
+    }
+  });
+
+  it('shows its status as plain text from the scene content', () => {
+    expect(html).toContain(`Status: ${PROJECT_STATUS.datavista}`);
+  });
+
+  it('shows no dossier code, category label or decision badge', () => {
+    for (const text of ['DOSSIER', 'CATEGORY', 'Feature Build', 'ACCEPTED']) expect(html).not.toContain(text);
+  });
+});
+
+describe('Projects caption', () => {
+  it('has a status for each project marker, and no others', () => {
+    expect(Object.keys(PROJECT_STATUS).sort()).toEqual(sectionLayouts.projects.markers.map((m) => m.page).sort());
+  });
+
+  it('counts the projects by status', () => {
+    expect(SECTION_LINES.projects).toBe('3 completed · 2 in development');
+    expect(projectsCaption({ a: 'In Development' })).toBe('1 in development');
   });
 });
 

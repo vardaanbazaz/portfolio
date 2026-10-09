@@ -27,10 +27,34 @@ export const SECTION_TITLES: Record<SectionId, string> = {
   contact: 'Contact',
 };
 
+export type ProjectPageId = Extract<PageId, 'datavista' | 'neuroinsight-ai' | 'attrition' | 'kanbanlight' | 'unified-api-ingester'>;
+
+export type ProjectStatus = 'Completed' | 'In Development';
+
+/** Each project's status, shown on its page and counted in the Projects caption.
+ *  Copied from the professional site's live text (`main`), `src/data/manuscript_config.ts`; each cites its line there. */
+export const PROJECT_STATUS: Record<ProjectPageId, ProjectStatus> = {
+  datavista: 'Completed', // :149
+  'neuroinsight-ai': 'Completed', // :220
+  attrition: 'Completed', // :283
+  kanbanlight: 'In Development', // :341
+  'unified-api-ingester': 'In Development', // :381
+};
+
+const STATUS_ORDER: readonly ProjectStatus[] = ['Completed', 'In Development'];
+
+/** For example "3 completed · 2 in development"; a status no project has is left out. */
+export function projectsCaption(statuses: Record<string, ProjectStatus>): string {
+  const all = Object.values(statuses);
+  return STATUS_ORDER.map((status) => [all.filter((s) => s === status).length, status] as const)
+    .filter(([count]) => count > 0)
+    .map(([count, status]) => `${count} ${status.toLowerCase()}`)
+    .join(' · ');
+}
+
 export const SECTION_LINES: Record<SectionId, string> = {
   about: 'B.Tech in Data Science and Artificial Intelligence', // DECISIONS 7; FACTS 1 Institution and degree
-  // PLACEHOLDER: becomes a line computed from the project pages' statuses once they exist.
-  projects: 'Placeholder one-liner',
+  projects: projectsCaption(PROJECT_STATUS), // computed from PROJECT_STATUS
   experience: 'Research and Development Intern · Web/App Developer', // the role titles, src/content/pages/experience.ts
   publications: 'Two IEEE conference papers (first author, CICT 2025)', // DECISIONS 2 Research line; FACTS 1 "Published IEEE author"
   contact: 'Open to remote roles.', // DECISIONS 1; FACTS 1 Target roles
@@ -44,7 +68,7 @@ export const SECTION_NOTES: Partial<Record<SectionId, string>> = {
 /** Marker labels, page headings and document titles. */
 export const PAGE_LABELS: Record<PageId, string> = {
   about: 'About',
-  datavista: 'DataVista', // FACTS 3.1
+  datavista: 'DataVista', // src/pages/DataVistaEntry.jsx:96 on the professional site's main
   'neuroinsight-ai': 'NeuroInsight-AI', // FACTS 3.2
   attrition: 'Employee Attrition Analysis', // FACTS 3.3 Project name
   kanbanlight: 'KanbanLight', // FACTS 3.5

@@ -4,6 +4,7 @@ import { PAGE_FADE_SECONDS } from '../scene/tuning';
 import { UI } from '../ui/strings';
 import { itemHeadingId, type ItemId, type PageId } from './contract';
 import { pages } from './registry';
+import { scrollToHeading } from './scrollToHeading';
 
 interface PageViewProps {
   page: PageId;
@@ -21,10 +22,7 @@ function FocusHeading({ root, item }: { root: RefObject<HTMLElement | null>; ite
     const page = root.current;
     const heading = item && page?.querySelector<HTMLElement>(`#${itemHeadingId(item)}`);
     if (page && heading) {
-      heading.focus({ preventScroll: true });
-      // Scrolls only the page itself, never the window: the camera follows the window's scroll position.
-      const offset = heading.getBoundingClientRect().top - page.getBoundingClientRect().top;
-      page.scrollTop += offset - parseFloat(getComputedStyle(heading).scrollMarginTop);
+      scrollToHeading(page, heading);
     } else {
       root.current?.querySelector<HTMLElement>('h1')?.focus();
     }

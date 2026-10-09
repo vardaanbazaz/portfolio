@@ -88,6 +88,47 @@ export interface PublicationsContent {
   citations: readonly Citation[];
 }
 
+/** A bold term and the text after it, as in "Storage: IndexedDB via Dexie.js…". */
+export interface TermItem {
+  term: string;
+  text: string;
+}
+
+/** An architecture decision record. */
+export interface Adr {
+  id: string;
+  title: string;
+  context: string;
+  decision: string;
+  consequences: string;
+}
+
+/** One piece of a project page section, shown in order. */
+export type ProjectBlock =
+  | { kind: 'paragraph'; text: string }
+  | { kind: 'terms'; items: readonly TermItem[] }
+  | { kind: 'adr'; adr: Adr }
+  | { kind: 'link'; link: ExternalLink };
+
+/** A section of a project page, with its entry in the page's contents list. */
+export interface ProjectSection {
+  /** Heading id the contents list links to. Unique across the site. */
+  id: string;
+  /** Its text in the contents list, which can differ from its heading. */
+  contentsLabel: string;
+  heading: string;
+  blocks: readonly ProjectBlock[];
+}
+
+/** A project page. Its status lives in `src/content/scene.ts`, which the Projects caption counts. */
+export interface ProjectContent {
+  subtitle: string;
+  summary: string;
+  source: ExternalLink;
+  pills: readonly string[];
+  sections: readonly ProjectSection[];
+}
+
 export interface ContactContent {
   email: string;
   availability: string;

@@ -32,6 +32,8 @@ export const UI = {
   adrContext: 'Context:',
   adrDecision: 'Decision:',
   adrConsequences: 'Consequences:',
+  status: 'Status:',
+  contents: 'Contents',
   bibtex: 'BibTeX',
   copyBibtex: 'Copy BibTeX',
   copyBibtexFailed: 'Copy failed. The BibTeX is selected; copy it with your keyboard.',
