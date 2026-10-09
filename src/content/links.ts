@@ -4,15 +4,15 @@ import type { ExternalLink } from './types';
 
 export const LINKEDIN: ExternalLink = {
   label: 'LinkedIn',
-  href: 'https://www.linkedin.com/in/vardaan-bajaj-a03605254/', // FACTS 1 LinkedIn URL
+  href: 'https://www.linkedin.com/in/vardaan-bajaj-a03605254/',
 };
 
 export const GITHUB: ExternalLink = {
   label: 'GitHub',
-  href: 'https://github.com/vardaanbazaz', // FACTS 1 GitHub account
+  href: 'https://github.com/vardaanbazaz',
 };
 
 export const RESUME: ExternalLink = {
   label: 'Resume',
-  href: '/resume.pdf', // DECISIONS 8
+  href: '/resume.pdf',
 };

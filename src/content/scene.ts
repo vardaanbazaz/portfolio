@@ -14,7 +14,7 @@ export const SITE_NAME = 'Vardaan';
 export const LANDING = {
   name: SITE_NAME,
   line: 'Placeholder line', // PLACEHOLDER
-  subline: 'Computer vision · full-stack web · C/DSP systems', // DECISIONS 2 Subline; FACTS 1 Headline role
+  subline: 'Computer vision · full-stack web · C/DSP systems',
   /** Shown as the word above the arrow. Hidden from screen readers; the menu is their way through. */
   scrollCue: { label: 'Scroll', arrow: '↓' },
 };
@@ -31,14 +31,13 @@ export type ProjectPageId = Extract<PageId, 'datavista' | 'neuroinsight-ai' | 'a
 
 export type ProjectStatus = 'Completed' | 'In Development';
 
-/** Each project's status, shown on its page and counted in the Projects caption.
- *  Copied from the professional site's live text (`main`), `src/data/manuscript_config.ts`; each cites its line there. */
+/** Each project's status, shown on its page and counted in the Projects caption. */
 export const PROJECT_STATUS: Record<ProjectPageId, ProjectStatus> = {
-  datavista: 'Completed', // :149
-  'neuroinsight-ai': 'Completed', // :220
-  attrition: 'Completed', // :283
-  kanbanlight: 'In Development', // :341
-  'unified-api-ingester': 'In Development', // :381
+  datavista: 'Completed',
+  'neuroinsight-ai': 'Completed',
+  attrition: 'Completed',
+  kanbanlight: 'In Development',
+  'unified-api-ingester': 'In Development',
 };
 
 const STATUS_ORDER: readonly ProjectStatus[] = ['Completed', 'In Development'];
@@ -53,11 +52,11 @@ export function projectsCaption(statuses: Record<string, ProjectStatus>): string
 }
 
 export const SECTION_LINES: Record<SectionId, string> = {
-  about: 'B.Tech in Data Science and Artificial Intelligence', // DECISIONS 7; FACTS 1 Institution and degree
+  about: 'B.Tech in Data Science and Artificial Intelligence',
   projects: projectsCaption(PROJECT_STATUS), // computed from PROJECT_STATUS
   experience: 'Research and Development Intern · Web/App Developer', // the role titles, src/content/pages/experience.ts
-  publications: 'Two IEEE conference papers (first author, CICT 2025)', // DECISIONS 2 Research line; FACTS 1 "Published IEEE author"
-  contact: 'Open to remote roles.', // DECISIONS 1; FACTS 1 Target roles
+  publications: 'Two IEEE conference papers (first author, CICT 2025)',
+  contact: 'Open to remote roles.',
 };
 
 /** A second caption line, beneath the one-liner, for sections that have one. */
@@ -68,11 +67,11 @@ export const SECTION_NOTES: Partial<Record<SectionId, string>> = {
 /** Marker labels, page headings and document titles. */
 export const PAGE_LABELS: Record<PageId, string> = {
   about: 'About',
-  datavista: 'DataVista', // src/pages/DataVistaEntry.jsx:96 on the professional site's main
-  'neuroinsight-ai': 'NeuroInsight-AI', // FACTS 3.2
-  attrition: 'Employee Attrition Analysis', // FACTS 3.3 Project name
-  kanbanlight: 'KanbanLight', // FACTS 3.5
-  'unified-api-ingester': 'Unified API Ingester', // FACTS 3.6
+  datavista: 'DataVista',
+  'neuroinsight-ai': 'NeuroInsight-AI',
+  attrition: 'Employee Attrition Analysis',
+  kanbanlight: 'KanbanLight',
+  'unified-api-ingester': 'Unified API Ingester',
   experience: 'Experience',
   publications: 'Publications',
   contact: 'Contact',
@@ -80,8 +79,8 @@ export const PAGE_LABELS: Record<PageId, string> = {
 
 /** Labels of the markers that open an item of a page. */
 export const ITEM_LABELS: Record<ItemId, string> = {
-  drdo: 'DRDO', // FACTS 2.1 Display line
-  agrybin: 'AgryBin', // FACTS 2.2 Company name
+  drdo: 'DRDO',
+  agrybin: 'AgryBin',
   'v-surveillance': 'V-Surveillance', // paper title, src/content/pages/publications.ts
   'web-page-linker': 'Web Page Linker', // paper title, src/content/pages/publications.ts
 };

@@ -1,7 +1,8 @@
 import { Fragment, type MouseEvent } from 'react';
 import { PAGE_LABELS, PROJECT_STATUS, type ProjectPageId } from '../content/scene';
-import type { Figure, ProjectBlock, ProjectContent, ProjectSection } from '../content/types';
+import type { Figure, ProjectBlock, ProjectContent, ProjectSection, TermItem } from '../content/types';
 import { UI } from '../ui/strings';
+import { DecisionDetails } from './DecisionDetails';
 import { LinkList } from './LinkList';
 import type { PageProps } from './contract';
 import { scrollToHeading } from './scrollToHeading';
@@ -36,33 +37,29 @@ function Contents({ sections }: { sections: readonly ProjectSection[] }) {
   );
 }
 
+/** The term in bold, then its text, if it has any. */
+function termItem(item: TermItem) {
+  return (
+    <li key={item.term}>
+      <strong>{item.term}</strong>
+      {item.text && ` ${item.text}`}
+    </li>
+  );
+}
+
 function Block({ block }: { block: ProjectBlock }) {
   switch (block.kind) {
     case 'paragraph':
       return <p>{block.text}</p>;
     case 'terms':
-      return (
-        <ul>
-          {block.items.map((item) => (
-            <li key={item.term}>
-              <strong>{item.term}</strong> {item.text}
-            </li>
-          ))}
-        </ul>
-      );
-    case 'adr':
+      return <ul>{block.items.map(termItem)}</ul>;
+    case 'ranked':
+      return <ol>{block.items.map(termItem)}</ol>;
+    case 'decision':
       return (
         <>
-          <p className="muted">{block.adr.id}</p>
-          <h3>{block.adr.title}</h3>
-          <dl>
-            <dt>{UI.adrContext}</dt>
-            <dd>{block.adr.context}</dd>
-            <dt>{UI.adrDecision}</dt>
-            <dd>{block.adr.decision}</dd>
-            <dt>{UI.adrConsequences}</dt>
-            <dd>{block.adr.consequences}</dd>
-          </dl>
+          <h3>{block.decision.title}</h3>
+          <DecisionDetails decision={block.decision} />
         </>
       );
     case 'link':

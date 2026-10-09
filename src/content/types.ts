@@ -47,8 +47,8 @@ export interface Citation {
   summary: string;
 }
 
+/** A step of a pipeline. The list numbers the steps. */
 export interface PipelineStage {
-  step: string;
   title: string;
   description: string;
 }
@@ -73,12 +73,7 @@ export interface PaperWriteUp extends Citation {
     rows: readonly ResultRow[];
     training: string;
   };
-  adr: {
-    title: string;
-    context: string;
-    decision: string;
-    consequences: string;
-  };
+  decision: DesignDecision;
   bibtex: string;
 }
 
@@ -88,19 +83,18 @@ export interface PublicationsContent {
   citations: readonly Citation[];
 }
 
-/** A bold term and the text after it, as in "Storage: IndexedDB via Dexie.js…". */
+/** A bold term and any text after it, as in "Storage: IndexedDB via Dexie.js…". */
 export interface TermItem {
   term: string;
-  text: string;
+  text?: string;
 }
 
-/** An architecture decision record. */
-export interface Adr {
-  id: string;
+/** A design decision: the problem, what was decided, and what came of it. */
+export interface DesignDecision {
   title: string;
-  context: string;
+  problem: string;
   decision: string;
-  consequences: string;
+  result: string;
 }
 
 /** A measured value and what it measures, as in "Accuracy: 0.796 ± 0.098". */
@@ -113,7 +107,9 @@ export interface Figure {
 export type ProjectBlock =
   | { kind: 'paragraph'; text: string }
   | { kind: 'terms'; items: readonly TermItem[] }
-  | { kind: 'adr'; adr: Adr }
+  /** A numbered list, most important first. */
+  | { kind: 'ranked'; items: readonly TermItem[] }
+  | { kind: 'decision'; decision: DesignDecision }
   | { kind: 'link'; link: ExternalLink }
   /** A formula, its name, and a note on what it scores. */
   | { kind: 'formula'; name: string; formula: string; note: string }

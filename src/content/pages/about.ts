@@ -3,11 +3,10 @@ import type { AboutContent } from '../types';
 
 export const content: AboutContent = {
   education: {
-    institution: 'Dr. Shyama Prasad Mukherjee International Institute of Information Technology, Naya Raipur', // DECISIONS 7; FACTS 1 Institution and degree
-    degree: 'B.Tech in Data Science and Artificial Intelligence', // DECISIONS 7; FACTS 1 Institution and degree
-    period: '2022–2026 (completed July 2026)', // FACTS 1 Degree period and status; matches the professional site
-    grade: 'CGPA 7.57 / 10 (80.7%, official conversion)', // DECISIONS 7; FACTS 1 Grade display
-    // FACTS 1 Coursework
+    institution: 'Dr. Shyama Prasad Mukherjee International Institute of Information Technology, Naya Raipur',
+    degree: 'B.Tech in Data Science and Artificial Intelligence',
+    period: '2022–2026 (completed July 2026)',
+    grade: 'CGPA 7.57 / 10 (80.7%, official conversion)',
     coursework: [
       'Deep Learning',
       'Computer Vision',
@@ -22,6 +21,6 @@ export const content: AboutContent = {
       'Major Project/Thesis',
     ],
   },
-  location: 'Jammu, India · open to remote', // DECISIONS 2 Location; FACTS 1 Location
+  location: 'Jammu, India · open to remote',
   links: [LINKEDIN, GITHUB, RESUME],
 };

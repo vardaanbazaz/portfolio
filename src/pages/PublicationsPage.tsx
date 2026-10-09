@@ -3,6 +3,7 @@ import { content } from '../content/pages/publications';
 import { PAGE_LABELS } from '../content/scene';
 import { UI } from '../ui/strings';
 import { CitationMeta } from './CitationMeta';
+import { DecisionDetails } from './DecisionDetails';
 import { itemHeadingId, type PageProps } from './contract';
 import { copyText, type CopyState } from './copyText';
 
@@ -44,8 +45,7 @@ export default function PublicationsPage({ headingId }: PageProps) {
         <h3>{UI.pipeline}</h3>
         <ol className="pipeline">
           {writeUp.pipeline.map((stage) => (
-            <li key={stage.step}>
-              <p className="muted">{stage.step}</p>
+            <li key={stage.title}>
               <p>
                 <strong>{stage.title}</strong>
               </p>
@@ -86,15 +86,8 @@ export default function PublicationsPage({ headingId }: PageProps) {
         </p>
         <p className="muted">{writeUp.results.training}</p>
 
-        <h3>{writeUp.adr.title}</h3>
-        <dl>
-          <dt>{UI.adrContext}</dt>
-          <dd>{writeUp.adr.context}</dd>
-          <dt>{UI.adrDecision}</dt>
-          <dd>{writeUp.adr.decision}</dd>
-          <dt>{UI.adrConsequences}</dt>
-          <dd>{writeUp.adr.consequences}</dd>
-        </dl>
+        <h3>{UI.designDecision(writeUp.decision.title)}</h3>
+        <DecisionDetails decision={writeUp.decision} />
 
         <h3>{UI.bibtex}</h3>
         <pre ref={bibtexRef} className="bibtex">

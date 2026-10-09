@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { content as attrition } from '../../src/content/pages/attrition';
 import { content as datavista } from '../../src/content/pages/datavista';
 import { content as experience } from '../../src/content/pages/experience';
 import { content as neuroinsight } from '../../src/content/pages/neuroinsight-ai';
@@ -16,6 +17,7 @@ import {
   SECTION_TITLES,
 } from '../../src/content/scene';
 import { ITEM_PAGE, itemHeadingId, opensPanel, PAGE_IDS, PAGE_ITEMS, PANEL_ITEMS } from '../../src/pages/contract';
+import AttritionPage from '../../src/pages/AttritionPage';
 import DataVistaPage from '../../src/pages/DataVistaPage';
 import NeuroInsightPage from '../../src/pages/NeuroInsightPage';
 import PublicationsPage from '../../src/pages/PublicationsPage';
@@ -148,11 +150,22 @@ describe('Publications page', () => {
     expect(html).not.toContain(linker.title);
     expect(html).not.toContain(linker.doi);
   });
+
+  it('heads the design decision with its name and labels its parts', () => {
+    expect(html).toContain('<h3>Design decision: SAHI slicing for small objects</h3>');
+    for (const label of ['Problem', 'Decision', 'Result']) expect(html).toContain(`<dt>${label}</dt>`);
+  });
+
+  it('lets the ordered list number the pipeline steps', () => {
+    expect(html).toContain('<ol class="pipeline">');
+    expect(html).not.toContain('Stage 0');
+  });
 });
 
 const projectPages = [
   { name: 'DataVista', page: 'datavista', Page: DataVistaPage, content: datavista },
   { name: 'NeuroInsight-AI', page: 'neuroinsight-ai', Page: NeuroInsightPage, content: neuroinsight },
+  { name: 'Employee Attrition Analysis', page: 'attrition', Page: AttritionPage, content: attrition },
 ] as const;
 
 for (const { name, page, Page, content } of projectPages) {
@@ -174,8 +187,23 @@ for (const { name, page, Page, content } of projectPages) {
       expect(html).toContain(`Status: ${PROJECT_STATUS[page]}`);
     });
 
-    it('shows no dossier code, category label or decision badge', () => {
-      for (const text of ['DOSSIER', 'CATEGORY', 'Feature Build', 'ACCEPTED']) expect(html).not.toContain(text);
+    it('shows no ID code, category label or decision badge', () => {
+      // ID codes such as the old record and page codes: capitals, a hyphen, digits.
+      expect(html).not.toMatch(/\b[A-Z]{2,}-\d{3,}\b/);
+      for (const text of ['MANUSCRIPT', 'CATEGORY', 'Feature Build', 'ACCEPTED']) expect(html).not.toContain(text);
+    });
+
+    it('gives its section headings and contents entries no numbers', () => {
+      for (const section of content.sections) {
+        expect(section.heading).not.toMatch(/^\d/);
+        expect(section.contentsLabel).not.toMatch(/^\d/);
+      }
+    });
+
+    it('labels each design decision Problem, Decision and Result', () => {
+      const decisions = content.sections.flatMap((s) => s.blocks).filter((b) => b.kind === 'decision');
+      expect(decisions.length).toBeGreaterThan(0);
+      for (const label of ['Problem', 'Decision', 'Result']) expect(html).toContain(`<dt>${label}</dt>`);
     });
   });
 }
@@ -195,12 +223,26 @@ describe('NeuroInsight-AI credits', () => {
     );
   });
 
+  it("gives the dataset's labels in the repo README's wording, in both places", () => {
+    const wording = "(147 recordings labeled Parkinson's, 48 labeled healthy control)";
+    expect(text.split(wording)).toHaveLength(3);
+    expect(text).not.toContain('147 PD');
+  });
+
   it('uses the decided subtitle and shows the accuracy with its baseline', () => {
     expect(neuroinsight.subtitle).toBe('Voice-classification research');
     expect(neuroinsight.figures).toEqual([
       { label: 'Accuracy:', value: '0.796 ± 0.098' },
       { label: 'Baseline:', value: '0.756 ± 0.067' },
     ]);
+  });
+});
+
+describe('Employee Attrition Analysis credit', () => {
+  it('credits the starting repo word for word', () => {
+    expect(JSON.stringify(attrition)).toContain(
+      'Refurbished from an earlier attrition analysis (github.com/bhanmrinal/Employee-Attrition-and-Churn-Analysis).',
+    );
   });
 });
 
@@ -230,7 +272,7 @@ describe('what each marker opens', () => {
     }
   });
 
-  it('shows Web Page Linker’s whole live summary, both sentences', () => {
+  it('shows Web Page Linker’s whole summary, both sentences', () => {
     expect(citationFor('web-page-linker')?.summary).toBe(
       'A Python object-oriented wrapper that encapsulates web-page <div> functionality into reusable classes. My part: researching and comparing candidate approaches and technologies, and contributing to the OOP-based implementation.',
     );

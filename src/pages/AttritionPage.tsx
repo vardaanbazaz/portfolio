@@ -1,7 +1,7 @@
 import { content } from '../content/pages/attrition';
 import type { PageProps } from './contract';
-import { PlaceholderPage } from './PlaceholderPage';
+import { ProjectPage } from './ProjectPage';
 
 export default function AttritionPage(props: PageProps) {
-  return <PlaceholderPage {...props} page="attrition" content={content} />;
+  return <ProjectPage {...props} page="attrition" content={content} />;
 }

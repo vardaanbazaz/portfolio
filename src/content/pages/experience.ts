@@ -1,9 +1,7 @@
 import type { ExperienceContent } from '../types';
 
-/** Copied word for word from the professional site's live text (`main`); each field cites its file and line there. */
 export const content: ExperienceContent = {
   roles: [
-    // src/data/manuscript_config.ts:532
     {
       title: 'Research and Development Intern',
       org: 'DRDO · Internship',
@@ -16,7 +14,6 @@ export const content: ExperienceContent = {
         'Used C11 atomics and multithreading for thread-safe state updates with minimal jitter.',
       ],
     },
-    // src/data/manuscript_config.ts:527
     {
       title: 'Web/App Developer',
       org: 'AgryBin · Internship',
@@ -29,6 +26,5 @@ export const content: ExperienceContent = {
       ],
     },
   ],
-  // src/ui/pages/LaboratoryOverviewPage.tsx:143
   also: 'Also: built a results-review web app for a crop-imaging research collaboration between IIIT Naya Raipur and Mahyco (2024).',
 };
