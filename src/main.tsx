@@ -11,8 +11,9 @@ history.scrollRestoration = 'manual';
 
 const bootStop = stopForPath(window.location.pathname);
 appStore.dispatch({ type: 'boot', route: bootStop });
-// Sound is on unless the visitor muted before. Nothing plays until the first marker click creates the AudioContext.
+// Sound is on unless the visitor muted before. The first pointer or key press anywhere creates the AudioContext.
 sound.init(readMuted(browserStorage()));
+sound.listen(window, document);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

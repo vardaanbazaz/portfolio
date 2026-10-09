@@ -57,18 +57,20 @@ function AppShell({ bootStop }: { bootStop: StopId | null }) {
 
   useScrollLock(phase !== 'exploring', bootStop);
 
+  // A sweep held for a context that isn't running yet is dropped when its flight ends.
   useEffect(() => {
-    if (phase === 'flyingIn') sound.play('in');
-    if (phase === 'flyingOut') sound.play('out');
+    if (phase === 'flyingIn') return sound.play('in');
+    if (phase === 'flyingOut') return sound.play('out');
+  }, [phase]);
+
+  useEffect(() => {
     if (phase === 'pageOpen') closeRequested.current = false;
     if (phase === 'exploring' && returnFocus) focusMarker(returnFocus);
   }, [phase, returnFocus]);
 
-  // Runs inside the marker or box click, the only gesture that creates the AudioContext.
   const openStop = useCallback(
     (id: StopId) => {
       if (appStore.get().phase !== 'exploring') return;
-      sound.unlock();
       navigate(STOP_PATHS[id]);
     },
     [navigate],

@@ -51,3 +51,9 @@ export const INSPECT_ELEVATION = 0.35;
 
 /** A stop's marker is hidden below this proximity, so off-screen markers can't be tabbed to. */
 export const MARKER_MIN_PROXIMITY = 0.2;
+
+/** Length in seconds of the fly-in and fly-out sweep. Long enough that a speaker waking up can't swallow it. */
+export const SWEEP_SECONDS = 0.35;
+
+/** Peak gain of the sweep (0 to 1). */
+export const SWEEP_PEAK_GAIN = 0.5;
