@@ -12,6 +12,7 @@ export const SITE_NAME = 'Vardaan';
 export const LANDING = {
   name: SITE_NAME,
   line: 'Placeholder line', // PLACEHOLDER
+  subline: 'Computer vision · full-stack web · C/DSP systems', // DECISIONS 2 Subline; FACTS 1 Headline role
   /** Shown as the word above the arrow. Hidden from screen readers; the menu is their way through. */
   scrollCue: { label: 'Scroll', arrow: '↓' },
 };
@@ -28,7 +29,7 @@ export const SECTION_LINES: Record<SectionId, string> = {
   about: 'Placeholder one-liner', // PLACEHOLDER
   projects: 'Placeholder one-liner', // PLACEHOLDER
   experience: 'Placeholder one-liner', // PLACEHOLDER
-  publications: 'Placeholder one-liner', // PLACEHOLDER
+  publications: 'Two IEEE conference papers (first author, CICT 2025)', // DECISIONS 2 Research line; FACTS 1 "Published IEEE author"
   contact: 'Placeholder one-liner', // PLACEHOLDER
 };
 

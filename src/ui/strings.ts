@@ -9,4 +9,13 @@ export const UI = {
   menuLabel: 'Sections',
   loading: 'Loading',
   pageTitle: (label: string) => `${label} · ${SITE_NAME}`,
+  education: 'Education',
+  coursework: 'Coursework',
+  location: 'Location',
+  links: 'Links',
+  email: 'Email',
+  copyEmail: 'Copy email',
+  copied: 'Copied.',
+  copyFailed: 'Copy failed. The address is selected; copy it with your keyboard.',
+  mailApp: 'Open in mail app',
 };
