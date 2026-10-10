@@ -5,8 +5,9 @@ import { LOADING_SCREEN_FADE_SECONDS, LOADING_SCREEN_LIMIT_SECONDS } from '../sc
  * page can't scroll (the `booting` class on <html>) and everything behind it is inert. This module fills its bar and
  * lifts it; it imports nothing 3D, so the HTML site can use it too.
  *
- * Its progress is real: on the scene site, one step for the scene's code, one for the scene's first frame, and one
- * per page and panel chunk fetched. It lifts once the scene has drawn and every chunk has arrived, or at the limit in
+ * Its progress is real: on the scene site, one step for the scene's code, one for the scene's first frame, one per
+ * backdrop poster, and one per page and panel chunk fetched. Backdrop videos and sound never count. It lifts once the
+ * scene has drawn and every poster and chunk has arrived, or at the limit in
  * `tuning.ts` after the first frame. On a direct page link it lifts as soon as that page has rendered instead.
  */
 
@@ -19,6 +20,7 @@ let drawn = false;
 let forPage = false;
 let lifted = false;
 let limitTimer: ReturnType<typeof setTimeout> | undefined;
+const liftListeners: (() => void)[] = [];
 
 const screen = () => document.getElementById(SCREEN_ID);
 
@@ -36,6 +38,7 @@ function lift(fade: boolean) {
   if (lifted) return;
   lifted = true;
   clearTimeout(limitTimer);
+  for (const listener of liftListeners.splice(0)) listener();
   document.documentElement.classList.remove('booting');
   document.getElementById('root')?.removeAttribute('inert');
   const el = screen();
@@ -57,11 +60,12 @@ function liftIfReady() {
   if (!forPage && drawn && chunksLeft === 0) lift(true);
 }
 
-/** The scene's code has loaded. `chunks` is how many page and panel chunks the background fetch will bring;
- *  `page` is true on a direct page link, where the screen waits for that page instead. */
-export function sceneCodeLoaded(chunks: number, page: boolean) {
-  total = chunks + 2;
-  chunksLeft = chunks;
+/** The scene's code has loaded. `chunks` is how many page and panel chunks the background fetch will bring, and
+ *  `posters` how many backdrop posters load; `page` is true on a direct page link, where the screen waits for that
+ *  page instead. */
+export function sceneCodeLoaded(chunks: number, posters: number, page: boolean) {
+  total = chunks + posters + 2;
+  chunksLeft = chunks + posters;
   forPage = page;
   step();
 }
@@ -77,7 +81,8 @@ export function firstFrameDrawn() {
   liftIfReady();
 }
 
-/** One page or panel chunk has arrived. A chunk that failed for good doesn't count; the limit covers it. */
+/** One page or panel chunk, or one backdrop poster, has arrived. One that failed for good doesn't count; the limit
+ *  covers it. */
 export function chunkArrived() {
   chunksLeft--;
   step();
@@ -88,6 +93,13 @@ export function chunkArrived() {
  *  screen. Call it from a layout effect: the lift has to clear `inert` before the view's effects move focus. */
 export function contentShown() {
   if (forPage) lift(true);
+}
+
+/** Runs `listener` once the screen lifts, or at once if it already has. For loads that mustn't compete with the
+ *  steps the screen waits on. */
+export function onLifted(listener: () => void) {
+  if (lifted) listener();
+  else liftListeners.push(listener);
 }
 
 /** The HTML site has rendered: the screen goes at once, with no fade. */

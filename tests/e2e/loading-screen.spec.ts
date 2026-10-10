@@ -3,8 +3,11 @@ import { PAGE_PATHS } from '../../src/routes';
 import { LOADING_SCREEN_LIMIT_SECONDS } from '../../src/scene/tuning';
 import { chunkPattern, expect, holdChunks, loadingScreen, marker, PAGE_CHUNKS, PANEL_CHUNKS, scrollToSection, test } from './fixtures';
 
-/** Every step the scene site counts: its code, its first frame, and each page and panel chunk. */
-const TOTAL_STEPS = 2 + PAGE_CHUNKS.length + PANEL_CHUNKS.length;
+/** Backdrop posters (`BACKDROPS` in `src/environment/backdrops.ts`, which imports media files Playwright can't load). */
+const POSTERS = 1;
+
+/** Every step the scene site counts: its code, its first frame, each backdrop poster, and each page and panel chunk. */
+const TOTAL_STEPS = 2 + POSTERS + PAGE_CHUNKS.length + PANEL_CHUNKS.length;
 
 /** The background fetch takes the chunks in turn and the panels come last, so holding the last one back leaves every
  *  other step done. */

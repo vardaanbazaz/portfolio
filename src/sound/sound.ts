@@ -1,10 +1,11 @@
 /**
- * Synthesized interface sound. Web Audio only, no audio files.
+ * Interface sound: the synthesized fly-in and fly-out sweeps, and each zone's looping ambient bed (a bundled file).
  * The only module that touches Web Audio. The AudioContext is created only by `unlock()`, which runs on the
  * visitor's first pointer or key press anywhere on the page; never at import time or on load, and never while muted.
+ * Ambient files are fetched only once that context exists.
  */
 
-import { SWEEP_PEAK_GAIN, SWEEP_SECONDS } from '../scene/tuning';
+import { AMBIENT_FADE_SECONDS, SWEEP_PEAK_GAIN, SWEEP_SECONDS } from '../scene/tuning';
 
 /** Fly-in sweep rises; fly-out sweep falls. */
 export type Direction = 'in' | 'out';
@@ -59,6 +60,16 @@ let visibility: VisibilitySource | null = null;
 let pending: { direction: Direction; requestedAt: number } | null = null;
 const listeners = new Set<() => void>();
 
+/** One looping ambient bed. `level` is what the scene last asked for; the nodes exist once its file has decoded. */
+interface Bed {
+  level: number;
+  loading: boolean;
+  gain: GainNode | null;
+}
+const beds = new Map<string, Bed>();
+/** Every bed goes through this, so mute fades them all out together. Created with the context. */
+let ambientBus: GainNode | null = null;
+
 const isVisible = () => !visibility || visibility.visibilityState === 'visible';
 
 function wake(ctx: AudioContext) {
@@ -107,6 +118,33 @@ function sweep(ctx: AudioContext, direction: Direction, requestedAt: number) {
   osc.stop(t + SWEEP_SECONDS + 0.02);
 }
 
+/** Fetches and decodes a bed's file once, then loops it from silence up to its level. */
+function startBed(ctx: AudioContext, url: string, bed: Bed) {
+  if (bed.loading || bed.gain || bed.level <= 0 || !ambientBus) return;
+  bed.loading = true;
+  const bus = ambientBus;
+  fetch(url)
+    .then((response) => response.arrayBuffer())
+    .then((data) => ctx.decodeAudioData(data))
+    .then((buffer) => {
+      bed.loading = false;
+      if (context !== ctx) return;
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      source.connect(gain).connect(bus);
+      source.start();
+      gain.gain.setTargetAtTime(bed.level, ctx.currentTime, AMBIENT_FADE_SECONDS);
+      bed.gain = gain;
+    })
+    // A failed fetch or decode leaves the bed silent; the next level change tries again.
+    .catch(() => {
+      bed.loading = false;
+    });
+}
+
 /** Plays the held sweep once the context runs. */
 function flush() {
   if (!pending || muted || context?.state !== 'running') return;
@@ -138,9 +176,12 @@ export const sound = {
       context = new AudioContext();
       context.addEventListener('statechange', flush);
       keepAwake(context);
+      ambientBus = context.createGain();
+      ambientBus.connect(context.destination);
     }
     wake(context);
     flush();
+    for (const [url, bed] of beds) startBed(context, url, bed);
   },
 
   /**
@@ -166,12 +207,15 @@ export const sound = {
     pending = null;
     if (context && context.state !== 'closed') void context.close().catch(() => { });
     context = null;
+    ambientBus = null;
+    beds.clear();
   },
 
   /** Changes and saves the mute state. Never creates the AudioContext; the next press does. */
   setMuted(next: boolean) {
     muted = next;
     writeMuted(browserStorage(), next);
+    if (context && ambientBus) ambientBus.gain.setTargetAtTime(next ? 0 : 1, context.currentTime, AMBIENT_FADE_SECONDS);
     listeners.forEach((listener) => listener());
   },
 
@@ -190,6 +234,23 @@ export const sound = {
     return () => {
       if (pending === request) pending = null;
     };
+  },
+
+  /**
+   * Sets an ambient bed's level (0 to 1), easing there with time constant `fadeSeconds`. Before the first press it
+   * only records the level; the press that creates the context starts the bed. Fetches nothing until then.
+   */
+  ambient(url: string, level: number, fadeSeconds: number) {
+    let bed = beds.get(url);
+    if (!bed) {
+      bed = { level: 0, loading: false, gain: null };
+      beds.set(url, bed);
+    }
+    if (Math.abs(level - bed.level) < 1e-4) return;
+    bed.level = level;
+    if (!context) return;
+    if (bed.gain) bed.gain.gain.setTargetAtTime(level, context.currentTime, fadeSeconds);
+    else startBed(context, url, bed);
   },
 
   subscribe(listener: () => void) {

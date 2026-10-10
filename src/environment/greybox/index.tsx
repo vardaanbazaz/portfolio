@@ -1,6 +1,18 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { BackSide, type AmbientLight, type Color, type DirectionalLight, type Fog } from 'three';
+import {
+  BackSide,
+  CustomBlending,
+  OneFactor,
+  OneMinusSrcAlphaFactor,
+  SrcAlphaFactor,
+  type AmbientLight,
+  type DirectionalLight,
+  type Fog,
+  type GridHelper,
+  type Mesh,
+} from 'three';
+import { worldOpacity } from '../backdrops';
 import type { EnvironmentModule, EnvironmentProps } from '../contract';
 import { blendZones, createZoneState } from '../zones';
 
@@ -37,10 +49,12 @@ const DOME_VERTEX = /* glsl */ `
   }
 `;
 
+// Faded by `opacity` over a zone's backdrop video, which shows through the transparent canvas behind it.
 const DOME_FRAGMENT = /* glsl */ `
+  uniform float opacity;
   varying vec3 vColor;
   void main() {
-    gl_FragColor = vec4(vColor, 1.0);
+    gl_FragColor = vec4(vColor, opacity);
   }
 `;
 
@@ -56,10 +70,12 @@ function GreyboxWorld({ pathT, quality }: EnvironmentProps) {
       fogColor: { value: state.fogColor },
       fogNear: { value: 0 },
       fogFar: { value: 1 },
+      opacity: { value: 1 },
     }),
     [state],
   );
-  const background = useRef<Color>(null);
+  const dome = useRef<Mesh>(null);
+  const grid = useRef<GridHelper>(null);
   const fog = useRef<Fog>(null);
   const ambient = useRef<AmbientLight>(null);
   const sun = useRef<DirectionalLight>(null);
@@ -68,7 +84,14 @@ function GreyboxWorld({ pathT, quality }: EnvironmentProps) {
     blendZones(pathT.current, quality, state);
     uniforms.fogNear.value = state.fogNear;
     uniforms.fogFar.value = state.fogFar;
-    background.current?.copy(state.skyHorizon);
+    // Where a zone has a backdrop video, the dome and grid give way to it; at its own point they aren't drawn.
+    const opacity = worldOpacity(pathT.current);
+    uniforms.opacity.value = opacity;
+    if (dome.current) dome.current.visible = opacity > 0;
+    if (grid.current) {
+      grid.current.visible = opacity > 0;
+      grid.current.material.opacity = opacity;
+    }
     if (fog.current) {
       fog.current.color.copy(state.fogColor);
       fog.current.near = state.fogNear;
@@ -86,9 +109,9 @@ function GreyboxWorld({ pathT, quality }: EnvironmentProps) {
 
   return (
     <>
-      <color ref={background} attach="background" args={['#000000']} />
+      {/* No scene background: the canvas clears to transparent, so a backdrop video can show behind it. */}
       <fog ref={fog} attach="fog" args={['#000000', 1, 2]} />
-      <mesh renderOrder={-1} frustumCulled={false}>
+      <mesh ref={dome} renderOrder={-1} frustumCulled={false}>
         {/* More rings than a sky alone needs: the floor's fog changes quickly near eye level. */}
         <sphereGeometry args={[DOME_RADIUS, low ? 32 : 48, low ? 24 : 48]} />
         <shaderMaterial
@@ -97,12 +120,23 @@ function GreyboxWorld({ pathT, quality }: EnvironmentProps) {
           depthWrite={false}
           fog={false}
           toneMapped={false}
+          // Blended, yet drawn first with the opaque objects: a transparent material would be drawn over them.
+          blending={CustomBlending}
+          blendSrc={SrcAlphaFactor}
+          blendDst={OneMinusSrcAlphaFactor}
+          blendSrcAlpha={OneFactor}
+          blendDstAlpha={OneMinusSrcAlphaFactor}
           uniforms={uniforms}
           vertexShader={DOME_VERTEX}
           fragmentShader={DOME_FRAGMENT}
         />
       </mesh>
-      <gridHelper args={[160, low ? 40 : 160, '#3a3a3f', '#1e1e22']} position={[0, 0, -10]} />
+      <gridHelper
+        ref={grid}
+        args={[160, low ? 40 : 160, '#3a3a3f', '#1e1e22']}
+        position={[0, 0, -10]}
+        material-transparent
+      />
       <ambientLight ref={ambient} />
       <directionalLight ref={sun} position={[5, 10, 5]} />
     </>

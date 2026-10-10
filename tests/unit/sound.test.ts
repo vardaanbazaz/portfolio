@@ -95,12 +95,31 @@ describe('AudioContext lifecycle', () => {
     createBiquadFilter() {
       return { type: '', frequency: param(), connect: chain };
     }
+    gains: ReturnType<typeof param>[] = [];
     createGain() {
-      return { gain: param(), connect: chain, disconnect() {} };
+      const gain = param();
+      this.gains.push(gain);
+      return { gain, connect: chain, disconnect() {} };
+    }
+    beds: { loop: boolean; started: boolean }[] = [];
+    createBufferSource() {
+      const node = { buffer: null, loop: false, started: false, connect: chain, start: () => (node.started = true) };
+      this.beds.push(node);
+      return node;
+    }
+    decodeAudioData() {
+      return Promise.resolve({});
     }
   }
   function param() {
-    return { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} };
+    const p = {
+      value: 0,
+      targets: [] as number[],
+      setValueAtTime() {},
+      exponentialRampToValueAtTime() {},
+      setTargetAtTime: (v: number) => void p.targets.push(v),
+    };
+    return p;
   }
   function chain(next: unknown) {
     return next;
@@ -116,6 +135,8 @@ describe('AudioContext lifecycle', () => {
 
   let page: EventTarget;
   let doc: FakeDocument;
+  let fetches: string[] = [];
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
   const press = (type = 'pointerdown') => page.dispatchEvent(new Event(type));
 
   const load = async (savedMuted = false) => {
@@ -131,6 +152,11 @@ describe('AudioContext lifecycle', () => {
     doc = new FakeDocument();
     vi.resetModules();
     vi.stubGlobal('AudioContext', FakeAudioContext);
+    fetches = [];
+    vi.stubGlobal('fetch', (url: string) => {
+      fetches.push(url);
+      return Promise.resolve({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) });
+    });
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
   afterEach(() => {
@@ -244,5 +270,60 @@ describe('AudioContext lifecycle', () => {
     cancelIn();
     ctx.run();
     expect(ctx.sweeps).toHaveLength(1);
+  });
+
+  describe('ambient beds', () => {
+    it('fetches nothing before the first press, then loops the bed at its level', async () => {
+      const sound = await load();
+      sound.ambient('/bed.m4a', 0.1, 0.25);
+      await settle();
+      expect(fetches).toEqual([]);
+      press();
+      await settle();
+      expect(fetches).toEqual(['/bed.m4a']);
+      const ctx = contexts[0];
+      expect(ctx.beds).toHaveLength(1);
+      expect(ctx.beds[0]).toMatchObject({ loop: true, started: true });
+      // The bus, then the bed's own gain, which rises to the asked level.
+      expect(ctx.gains[1].targets).toEqual([0.1]);
+    });
+
+    it('follows later level changes without fetching again', async () => {
+      const sound = await load();
+      sound.ambient('/bed.m4a', 0.1, 0.25);
+      press();
+      await settle();
+      sound.ambient('/bed.m4a', 0.04, 0.25);
+      sound.ambient('/bed.m4a', 0, 0.6);
+      expect(contexts[0].gains[1].targets).toEqual([0.1, 0.04, 0]);
+      expect(fetches).toHaveLength(1);
+    });
+
+    it('does not load a bed whose level is 0', async () => {
+      const sound = await load();
+      sound.ambient('/bed.m4a', 0, 0.25);
+      press();
+      await settle();
+      expect(fetches).toEqual([]);
+    });
+
+    it('never fetches or creates anything when the visitor muted before', async () => {
+      const sound = await load(true);
+      sound.ambient('/bed.m4a', 0.1, 0.25);
+      press();
+      await settle();
+      expect(contexts).toHaveLength(0);
+      expect(fetches).toEqual([]);
+    });
+
+    it('mute fades every bed out through the bus, and unmute brings it back', async () => {
+      const sound = await load();
+      sound.ambient('/bed.m4a', 0.1, 0.25);
+      press();
+      await settle();
+      sound.setMuted(true);
+      sound.setMuted(false);
+      expect(contexts[0].gains[0].targets).toEqual([0, 1]);
+    });
   });
 });

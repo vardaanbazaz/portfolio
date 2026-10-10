@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
 import { LANDING, SECTION_LINES, SECTION_NOTES, SECTION_TITLES } from '../content/scene';
+import { Backdrops, BackdropTracker } from '../environment/Backdrops';
 import { environment, zoneVisuals } from '../environment/registry';
 import { ZoneVisuals } from '../environment/ZoneVisuals';
 import { SECTION_IDS } from '../sections/contract';
@@ -70,6 +71,8 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
     // Hidden with visibility, not display, so the canvas keeps its size and nothing reflows on return.
     // While a panel is up, the scene's text and marker buttons are hidden so they don't show through it.
     <div className={['scene', hidden && 'scene-hidden', panel && 'scene-panel'].filter(Boolean).join(' ')} inert={phase !== 'exploring'}>
+      {/* Behind the canvas, which is transparent wherever the sky dome isn't drawn. */}
+      <Backdrops pageOpen={phase === 'open' && !panel} />
       <Canvas
         dpr={dpr}
         // The opaque page covers the scene, so stop drawing while it is open. A panel keeps the scene drawing.
@@ -94,6 +97,7 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
         <MarkerTracker frame={frame} />
         <PanelLeaderTracker target={panel ? activeMarker : undefined} stacked={stacked} />
         <OverlayTracker frame={frame} />
+        <BackdropTracker pathT={frame.pathT} />
         <World pathT={frame.pathT} quality={quality} />
         <ZoneVisuals modules={zoneVisuals} pathT={frame.pathT} quality={quality} />
         {SECTION_IDS.map((id) => (

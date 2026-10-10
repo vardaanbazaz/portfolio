@@ -86,3 +86,16 @@ export const SWEEP_SECONDS = 0.35;
 
 /** Peak gain of the sweep (0 to 1). */
 export const SWEEP_PEAK_GAIN = 0.5;
+
+/** Seconds for a zone's backdrop video to fade in once it can play, over its poster. */
+export const BACKDROP_FADE_IN_SECONDS = 1.2;
+
+/** Gain of a zone's ambient bed at full zone weight (0 to 1). Measured (EBU R128): the landing bed's file is
+ *  -24.1 LUFS, so 0.25 plays it at about -36 LUFS, some 15 LU under the sweep's loudest moment (-21.3 LUFS). */
+export const AMBIENT_GAIN = 0.25;
+
+/** Time constant, in seconds, with which the ambient level follows the zone weight as the visitor scrolls. */
+export const AMBIENT_FOLLOW_SECONDS = 0.25;
+
+/** Time constant, in seconds, of the ambient fade as a full page opens or closes, and as mute is toggled. */
+export const AMBIENT_FADE_SECONDS = 0.6;
