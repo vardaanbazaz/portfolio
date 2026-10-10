@@ -170,6 +170,26 @@ describe('layerOpacities', () => {
     }
   });
 
+  it('leaves no page background anywhere on the path, around the snap to 0 and the landing point included', () => {
+    const ts: number[] = [];
+    for (let i = 0; i <= 10_000; i++) ts.push(i / 10_000);
+    // Where the landing weight crosses the snap, approached from both sides, and the eased camera's last steps home.
+    let lo = 0;
+    let hi = ZONE_T.about;
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2;
+      if (zoneWeight(mid, 'landing') >= BACKDROP_MIN_WEIGHT) lo = mid;
+      else hi = mid;
+    }
+    ts.push(lo, hi, lo - 1e-12, hi + 1e-12, 1e-6, 1e-9, 1e-12, Number.MIN_VALUE);
+    for (const t of ts) {
+      const weights = BACKDROPS.map(({ zone }) => backdropWeight(t, zone));
+      const { videos, background, dome } = contributions(weights, worldOpacity(t));
+      expect(background, `background at t=${t}`).toBeLessThan(1e-9);
+      expect(dome + videos.reduce((a, b) => a + b, 0), `cover at t=${t}`).toBeCloseTo(1, 9);
+    }
+  });
+
   it('mixes neighbouring backdrops by their weights', () => {
     const { videos, background, dome } = contributions([0.25, 0.5], 0.25);
     expect(videos[0]).toBeCloseTo(0.25);

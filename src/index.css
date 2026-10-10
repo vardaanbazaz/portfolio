@@ -106,14 +106,15 @@ h2:focus-visible,
   object-fit: cover;
 }
 
-/* Over its poster until it can play, then fades in (its duration is set inline from tuning.ts). */
+/* Shown over its poster only while it plays: fades in (its duration is set inline from tuning.ts), and gives way to
+   the poster at once when it pauses or stalls, so whatever a browser paints for a stopped video never shows. */
 .backdrop-video {
   opacity: 0;
-  transition: opacity ease-out;
 }
 
 .backdrop-video-ready {
   opacity: 1;
+  transition: opacity var(--backdrop-fade) ease-out;
 }
 
 /* Darkens the upper sky under the landing text, just enough for AA contrast across the whole loop (measured at
