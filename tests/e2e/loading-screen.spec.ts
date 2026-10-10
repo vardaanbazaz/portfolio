@@ -26,6 +26,24 @@ const RECORD_LOADING = () => {
 const recorded = (page: Page) =>
   page.evaluate(() => (window as unknown as { loading: { drawnAt: number; liftedAt: number } }).loading);
 
+/** Holds back animation frames until the test releases them, so the scene can't draw its first frame and the limit
+ *  never starts: the loading screen stays up for as long as the test needs. */
+const HOLD_FRAMES = () => {
+  const w = window as unknown as { releaseFrames: () => void };
+  const original = window.requestAnimationFrame.bind(window);
+  const held: FrameRequestCallback[] = [];
+  window.requestAnimationFrame = (callback) => {
+    held.push(callback);
+    return 0;
+  };
+  w.releaseFrames = () => {
+    window.requestAnimationFrame = original;
+    for (const callback of held.splice(0)) original(callback);
+  };
+};
+
+const releaseFrames = (page: Page) => page.evaluate(() => (window as unknown as { releaseFrames: () => void }).releaseFrames());
+
 /** The scene has drawn and every chunk but the held one has arrived. */
 async function expectAllButOne(page: Page) {
   await expect(loadingScreen(page)).toHaveAttribute('data-drawn', '', { timeout: 20_000 });
@@ -74,8 +92,16 @@ test.describe('with JavaScript off', () => {
 
 test('the loading screen stays while a chunk is held back, and lifts when it arrives', async ({ page }) => {
   await page.addInitScript(RECORD_LOADING);
+  // The first frame is held too, so the limit can't start while the other chunks arrive.
+  await page.addInitScript(HOLD_FRAMES);
   const held = await holdChunks(page, [LAST_CHUNK]);
   await page.goto('/');
+  // Every step but the first frame and the held chunk is done.
+  await expect(loadingScreen(page)).toHaveAttribute('data-done', String(TOTAL_STEPS - 2), { timeout: 20_000 });
+  await expect(loadingScreen(page)).not.toHaveAttribute('data-drawn');
+
+  // Now the limit starts, with only the held chunk left.
+  await releaseFrames(page);
   await expectAllButOne(page);
   await expect(loadingScreen(page)).toBeVisible();
   await expect(page.locator('#root')).toHaveAttribute('inert');
@@ -103,22 +129,6 @@ test('the loading screen lifts at the limit if a chunk never arrives, and that p
   await expect(page.getByRole('dialog').getByRole('status')).toHaveText('Loading');
 });
 
-/** Holds back animation frames until the test releases them, so the scene can't draw its first frame and the limit
- *  never starts: the loading screen stays up for as long as the test needs. */
-const HOLD_FRAMES = () => {
-  const w = window as unknown as { releaseFrames: () => void };
-  const original = window.requestAnimationFrame.bind(window);
-  const held: FrameRequestCallback[] = [];
-  window.requestAnimationFrame = (callback) => {
-    held.push(callback);
-    return 0;
-  };
-  w.releaseFrames = () => {
-    window.requestAnimationFrame = original;
-    for (const callback of held.splice(0)) original(callback);
-  };
-};
-
 test('while the loading screen is up, nothing behind it can be clicked, focused or scrolled', async ({ page }) => {
   await page.addInitScript(HOLD_FRAMES);
   await page.goto('/');
@@ -141,7 +151,7 @@ test('while the loading screen is up, nothing behind it can be clicked, focused 
   await expect(loadingScreen(page)).toBeVisible();
 
   // Once the scene draws, the screen lifts and the same press reaches the toggle, so the press above really aimed at it.
-  await page.evaluate(() => (window as unknown as { releaseFrames: () => void }).releaseFrames());
+  await releaseFrames(page);
   await expect(loadingScreen(page)).toHaveCount(0);
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await expect(mute).toHaveAttribute('aria-pressed', 'true');
