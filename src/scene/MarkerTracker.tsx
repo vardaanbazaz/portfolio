@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
+import { sectionOpacity } from '../environment/backdrops';
 import { MARKERS } from '../sections/layouts';
 import type { FrameState } from './frameState';
 import { markerWorldAnchor } from './layout';
@@ -9,8 +10,8 @@ import { MARKER_MIN_PROXIMITY } from './tuning';
 
 const projected = new Vector3();
 
-/** Pins each marker button over its box every frame, and hides it while its section is out of view
- *  so off-screen markers can't be tabbed to. The buttons are plain DOM beside the canvas. */
+/** Pins each marker button over its box every frame, and hides it while its section is out of view or faded out
+ *  (`sectionOpacity`), so markers of a section that isn't drawn can't be tabbed to or clicked. The buttons are plain DOM beside the canvas. */
 export function MarkerTracker({ frame }: { frame: FrameState }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
@@ -24,7 +25,8 @@ export function MarkerTracker({ frame }: { frame: FrameState }) {
       if (!el) continue;
       projected.copy(anchor).project(camera);
       const inFront = projected.z < 1;
-      const show = inFront && frame.proximity[section].current >= MARKER_MIN_PROXIMITY;
+      const show =
+        inFront && frame.proximity[section].current >= MARKER_MIN_PROXIMITY && sectionOpacity(frame.pathT.current, section) > 0;
       const visibility = show ? 'visible' : 'hidden';
       if (el.style.visibility !== visibility) el.style.visibility = visibility;
       if (!show) continue;

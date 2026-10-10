@@ -5,12 +5,14 @@ import {
   backdropWeight,
   BACKDROPS,
   layerOpacities,
+  sectionOpacity,
   shouldPlay,
   worldOpacity,
   type ZoneBackdrop,
 } from '../../src/environment/backdrops';
 import { ZONE_IDS, ZONE_T, zoneWeight } from '../../src/environment/zones';
 import { AMBIENT_GAIN, SWEEP_PEAK_GAIN } from '../../src/scene/tuning';
+import { SECTION_IDS } from '../../src/sections/contract';
 
 const backdrop = (zone: ZoneBackdrop['zone']): ZoneBackdrop => ({ zone, video: `${zone}.mp4`, poster: `${zone}.webp` });
 
@@ -83,6 +85,56 @@ describe('worldOpacity', () => {
     const both = [backdrop('landing'), backdrop('about')];
     for (let i = 0; i <= 20; i++) expect(worldOpacity((ZONE_T.about * i) / 20, both)).toBeCloseTo(0);
     expect(worldOpacity(ZONE_T.projects, both)).toBe(1);
+  });
+});
+
+describe('sectionOpacity', () => {
+  const landing = [backdrop('landing')];
+
+  it('hides every section at the landing point', () => {
+    for (const id of SECTION_IDS) expect(sectionOpacity(0, id, landing)).toBe(0);
+  });
+
+  it('shows About partly halfway to it', () => {
+    const opacity = sectionOpacity(ZONE_T.about / 2, 'about', landing);
+    expect(opacity).toBeGreaterThan(0);
+    expect(opacity).toBeLessThan(1);
+  });
+
+  it('fades in together with the dome, all the way from the landing to About', () => {
+    for (let i = 0; i <= 40; i++) {
+      const t = (ZONE_T.about * i) / 40;
+      for (const id of SECTION_IDS) expect(sectionOpacity(t, id, landing)).toBe(worldOpacity(t, landing));
+    }
+  });
+
+  it('changes by small steps only, with no popping', () => {
+    const steps = 400;
+    for (const id of SECTION_IDS) {
+      let previous = sectionOpacity(0, id, landing);
+      for (let i = 1; i <= steps; i++) {
+        const opacity = sectionOpacity((ZONE_T.about * i) / steps, id, landing);
+        expect(Math.abs(opacity - previous)).toBeLessThan(0.02);
+        previous = opacity;
+      }
+    }
+  });
+
+  it('leaves every section fully drawn from About on, where only grey zones have weight', () => {
+    for (const id of SECTION_IDS) {
+      for (const zone of ZONE_IDS.slice(1)) expect(sectionOpacity(ZONE_T[zone], id, landing)).toBe(1);
+      for (let i = 0; i <= 20; i++) expect(sectionOpacity(ZONE_T.about + ((1 - ZONE_T.about) * i) / 20, id, landing)).toBe(1);
+    }
+  });
+
+  it('is 1 everywhere with no backdrops', () => {
+    for (const t of [0, 0.05, ZONE_T.about, 1]) for (const id of SECTION_IDS) expect(sectionOpacity(t, id, [])).toBe(1);
+  });
+
+  it('does not hide a section over its own zone backdrop, only the others', () => {
+    const projects = [backdrop('projects')];
+    expect(sectionOpacity(ZONE_T.projects, 'projects', projects)).toBe(1);
+    for (const id of SECTION_IDS.filter((id) => id !== 'projects')) expect(sectionOpacity(ZONE_T.projects, id, projects)).toBe(0);
   });
 });
 

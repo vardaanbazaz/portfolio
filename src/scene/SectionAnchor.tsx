@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useFrame, type ThreeEvent } from '@react-three/fiber';
-import { Vector3, type Group } from 'three';
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
+import { Vector3, type Group, type Material, type Mesh } from 'three';
+import { sectionOpacity } from '../environment/backdrops';
 import { prefetchTarget } from '../preload';
 import { markerKey, type MarkerKey, type MarkerTarget, type SectionId, type SectionMarker } from '../sections/contract';
 import { sectionVisuals } from '../sections/registry';
@@ -14,6 +15,7 @@ export interface SectionHandlers {
 
 interface SectionAnchorProps extends SectionHandlers {
   id: SectionId;
+  pathT: FrameValue<number>;
   proximity: FrameValue<number>;
   quality: Quality;
   /** The marker of this section whose page or panel is opening, open or closing. */
@@ -24,9 +26,26 @@ interface SectionAnchorProps extends SectionHandlers {
 
 const scratchLocal = new Vector3();
 
+/** Sets every material under `root` to `opacity`. Each is made transparent once, the first time it is seen, so the
+ *  fade never changes a shader mid-scroll. */
+function fadeMaterials(root: Group, opacity: number) {
+  root.traverse((object) => {
+    const material = (object as Mesh).material as Material | Material[] | undefined;
+    if (!material) return;
+    for (const m of Array.isArray(material) ? material : [material]) {
+      if (!m.transparent) {
+        m.transparent = true;
+        m.needsUpdate = true;
+      }
+      m.opacity = opacity;
+    }
+  });
+}
+
 /** Places a section visual in the world, and skips drawing it while it is out of range.
+ *  Fades it by `sectionOpacity`, so it never shows over another zone's backdrop; while that is 0 it isn't drawn.
  *  Clicking the visual opens the target of the marker whose box is nearest the click. The visual itself only knows its local space. */
-export function SectionAnchor({ id, proximity, quality, active, markerHovered, onOpen }: SectionAnchorProps) {
+export function SectionAnchor({ id, pathT, proximity, quality, active, markerHovered, onOpen }: SectionAnchorProps) {
   const { Visual, layout } = sectionVisuals[id];
   const { bounds, markers } = layout;
   const { ground, rotationY } = sectionLayout[id];
@@ -35,9 +54,22 @@ export function SectionAnchor({ id, proximity, quality, active, markerHovered, o
   const [meshHovered, setMeshHovered] = useState<MarkerKey | null>(null);
   const centre = useMemo(() => new Vector3(ground[0], bounds[1], ground[2]), [ground, bounds]);
   const radius = Math.hypot(...bounds);
+  const canvas = useThree((s) => s.gl.domElement);
+  const drawn = useRef(-1);
 
   useFrame(({ camera }) => {
-    if (root.current) root.current.visible = sectionInRange(camera.position.distanceTo(centre), radius, quality);
+    if (!root.current || !lifted.current) return;
+    const opacity = sectionOpacity(pathT.current, id);
+    const visible = opacity > 0 && sectionInRange(camera.position.distanceTo(centre), radius, quality);
+    root.current.visible = visible;
+    if (visible) fadeMaterials(lifted.current, opacity);
+    else if (meshHovered !== null) setMeshHovered(null);
+    // What is drawn, on the canvas for the tests to read: 0 when hidden, else the opacity. Written on change only.
+    const shown = visible ? opacity : 0;
+    if (shown !== drawn.current) {
+      drawn.current = shown;
+      canvas.setAttribute(`data-section-${id}`, shown.toFixed(3));
+    }
   });
 
   useEffect(() => {
@@ -58,13 +90,18 @@ export function SectionAnchor({ id, proximity, quality, active, markerHovered, o
     if (hovered) prefetchTarget(hovered.page, hovered.item);
   }, [markers, meshHovered]);
 
+  // three's raycaster also hits hidden objects. A hidden section lets the event pass to whatever is behind it.
+  const hidden = () => !root.current?.visible;
+
   const onPointerMove = (e: ThreeEvent<PointerEvent>) => {
+    if (hidden()) return;
     e.stopPropagation();
     const key = markerKey(markerAt(e));
     setMeshHovered((cur) => (cur === key ? cur : key));
   };
 
   const onPointerDown = (e: ThreeEvent<PointerEvent>) => {
+    if (hidden()) return;
     const { page, item } = markerAt(e);
     prefetchTarget(page, item);
   };
@@ -75,6 +112,7 @@ export function SectionAnchor({ id, proximity, quality, active, markerHovered, o
       position={ground}
       rotation={[0, rotationY, 0]}
       onClick={(e) => {
+        if (hidden()) return;
         e.stopPropagation();
         const { page, item } = markerAt(e);
         onOpen({ page, item });

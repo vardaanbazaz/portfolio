@@ -1,5 +1,7 @@
 import type { Page } from '@playwright/test';
 import { PAGE_PATHS } from '../../src/routes';
+import { SECTION_T } from '../../src/scene/cameraPath';
+import { SECTION_IDS, type SectionId } from '../../src/sections/contract';
 import {
   audioContexts,
   COUNT_AUDIO_CONTEXTS,
@@ -244,5 +246,48 @@ test.describe('the landing ambient bed', () => {
     await mute.click();
     await expect(mute).toHaveAttribute('aria-pressed', 'false');
     await expect.poll(async () => (await recorded(page)).targets.at(-1)).toBe(1);
+  });
+});
+
+test.describe("nothing of another zone over the landing's video", () => {
+  /** What the canvas says it draws of a section: 0 while hidden, else its opacity. */
+  const drawn = async (page: Page, id: SectionId) => Number(await page.locator('.scene canvas').getAttribute(`data-section-${id}`));
+
+  /** Where the About box stood over the landing's sky, behind the name, before sections gave way to the video. */
+  const ABOUT_BOX_AT_LANDING = { x: 380, y: 150 };
+
+  test('at the landing no section is drawn, and no marker can be reached or clicked', async ({ page }) => {
+    await page.goto('/');
+    await waitForScene(page);
+    for (const id of SECTION_IDS) await expect.poll(() => drawn(page, id)).toBe(0);
+    const markers = page.locator('button.marker');
+    for (let i = 0; i < (await markers.count()); i++) await expect(markers.nth(i)).toBeHidden();
+    // Tab goes all the way round without landing on a marker.
+    for (let i = 0; i < 20; i++) {
+      await page.keyboard.press('Tab');
+      expect(await page.evaluate(() => document.activeElement?.classList.contains('marker') ?? false)).toBe(false);
+    }
+    await page.mouse.click(ABOUT_BOX_AT_LANDING.x, ABOUT_BOX_AT_LANDING.y);
+    await page.waitForTimeout(1000);
+    await expect(page).toHaveURL(/\/$/);
+    await expectExploring(page);
+  });
+
+  test('halfway to About, the About box is partly drawn', async ({ page }) => {
+    await page.goto('/');
+    await waitForScene(page);
+    await page.evaluate((t) => window.scrollTo(0, Math.round(t * (document.documentElement.scrollHeight - innerHeight))), SECTION_T.about / 2);
+    await expect.poll(() => drawn(page, 'about')).toBeGreaterThan(0.2);
+    expect(await drawn(page, 'about')).toBeLessThan(0.8);
+  });
+
+  test('in the grey zones every section in range is drawn in full, and markers show', async ({ page }) => {
+    await page.goto('/');
+    await waitForScene(page);
+    for (const id of ['about', 'projects', 'experience'] as const) {
+      await scrollToSection(page, id);
+      await expect.poll(() => drawn(page, id)).toBe(1);
+      await expect(page.locator('button.marker:visible').first()).toBeVisible();
+    }
   });
 });

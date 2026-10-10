@@ -104,6 +104,7 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
           <SectionAnchor
             key={id}
             id={id}
+            pathT={frame.pathT}
             proximity={frame.proximity[id]}
             quality={quality}
             active={activeMarker?.section === id ? activeMarker.key : null}

@@ -1,4 +1,5 @@
 import { AMBIENT_GAIN } from '../scene/tuning';
+import type { SectionId } from '../sections/contract';
 import landingAmbient from './assets/landing-ambient.m4a';
 import landingPoster from './assets/landing-poster.webp';
 import landingVideo from './assets/landing.mp4';
@@ -34,6 +35,20 @@ export function backdropWeight(t: number, zone: ZoneId, zones: ZoneTable = ZONES
 export function worldOpacity(t: number, backdrops: readonly ZoneBackdrop[] = BACKDROPS, zones: ZoneTable = ZONES): number {
   let covered = 0;
   for (const { zone } of backdrops) covered += backdropWeight(t, zone, zones);
+  return Math.min(Math.max(1 - covered, 0), 1);
+}
+
+/** How much of a section's visuals shows at path position t: whatever the other zones' backdrops leave, so nothing
+ *  of one zone is drawn over another's video. A backdrop in the section's own zone doesn't hide it. 0 at the
+ *  landing, rising with the dome on the way to About, 1 wherever no other zone's backdrop has any weight. */
+export function sectionOpacity(
+  t: number,
+  section: SectionId,
+  backdrops: readonly ZoneBackdrop[] = BACKDROPS,
+  zones: ZoneTable = ZONES,
+): number {
+  let covered = 0;
+  for (const { zone } of backdrops) if (zone !== section) covered += backdropWeight(t, zone, zones);
   return Math.min(Math.max(1 - covered, 0), 1);
 }
 
