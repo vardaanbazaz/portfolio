@@ -181,6 +181,31 @@ describe('AudioContext lifecycle', () => {
     expect(contexts[0].resumes).toBe(3);
   });
 
+  it('creates one at once when the visitor pressed before it was listening, and none when they had not', async () => {
+    const { sound } = await import('../../src/sound/sound');
+    sound.listen(page, doc, false);
+    expect(contexts).toHaveLength(0);
+    sound.dispose();
+    sound.listen(page, doc, true);
+    expect(contexts).toHaveLength(1);
+  });
+
+  it('starts a bed at its level after an earlier press, with no second press', async () => {
+    const { sound } = await import('../../src/sound/sound');
+    sound.listen(page, doc, true);
+    sound.ambient('/bed.m4a', 0.1, 0.25);
+    await settle();
+    expect(fetches).toEqual(['/bed.m4a']);
+    expect(contexts[0].beds[0]).toMatchObject({ loop: true, started: true });
+  });
+
+  it('creates none for an earlier press when the visitor muted before', async () => {
+    const { sound } = await import('../../src/sound/sound');
+    sound.init(true);
+    sound.listen(page, doc, true);
+    expect(contexts).toHaveLength(0);
+  });
+
   it('creates one on the first keydown', async () => {
     await load();
     press('keydown');

@@ -11,8 +11,9 @@ import { browserStorage, readMuted, sound } from './sound/sound';
 import { appStore } from './store';
 import { chunkArrived, onLifted, sceneCodeLoaded } from './ui/loadingScreen';
 
-/** The scene site. Loaded only once the capability check passes, so everything 3D sits behind this import. */
-export function mountScene(root: Root, onContextLost: () => void) {
+/** The scene site. Loaded only once the capability check passes, so everything 3D sits behind this import.
+ *  `pressedEarly`: the visitor pressed while this code was on its way. */
+export function mountScene(root: Root, onContextLost: () => void, pressedEarly = false) {
   // Scroll position is managed by the app (scroll lock, restore and section travel), not the browser.
   history.scrollRestoration = 'manual';
 
@@ -28,9 +29,10 @@ export function mountScene(root: Root, onContextLost: () => void) {
   listenVisibility(document);
   const bootSection = bootPage ? PAGE_SECTION[bootPage] : sectionForHash(window.location.hash);
   appStore.dispatch({ type: 'boot', route: bootPage });
-  // Sound is on unless the visitor muted before. The first pointer or key press anywhere creates the AudioContext.
+  // Sound is on unless the visitor muted before. The first pointer or key press anywhere creates the AudioContext,
+  // at once if it came before this code did.
   sound.init(readMuted(browserStorage()));
-  sound.listen(window, document);
+  sound.listen(window, document, pressedEarly);
 
   // The scene can't go on without its context: hand the visit to the HTML site, with no sound and the page unlocked.
   let left = false;

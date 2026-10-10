@@ -247,6 +247,48 @@ test.describe('the landing ambient bed', () => {
     await expect(mute).toHaveAttribute('aria-pressed', 'false');
     await expect.poll(async () => (await recorded(page)).targets.at(-1)).toBe(1);
   });
+
+  /** The time of the first press, and of the first bed started, from navigation start. */
+  const RECORD_START = () => {
+    const w = window as unknown as { pressedAt?: number; bedAt?: number };
+    addEventListener('pointerdown', () => (w.pressedAt ??= performance.now()), { capture: true });
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<typeof start>) {
+      w.bedAt ??= performance.now();
+      return start.apply(this, args);
+    };
+  };
+  const bedDelay = async (page: Page) => {
+    const { pressedAt, bedAt } = await page.evaluate(() => {
+      const w = window as unknown as { pressedAt?: number; bedAt?: number };
+      return { pressedAt: w.pressedAt, bedAt: w.bedAt };
+    });
+    return pressedAt === undefined || bedAt === undefined ? null : bedAt - pressedAt;
+  };
+
+  test('starts within a second of the first press at the landing, with no scroll', async ({ page }) => {
+    await page.addInitScript(RECORD_START);
+    await page.goto('/');
+    await waitForScene(page);
+    await page.mouse.click(640, 360);
+    await expect.poll(() => bedDelay(page)).not.toBeNull();
+    expect(await bedDelay(page)).toBeLessThan(1000);
+  });
+
+  test('starts from a press made while the loading screen is up, before the scene code has arrived', async ({ page }) => {
+    await page.addInitScript(COUNT_AUDIO_CONTEXTS);
+    await page.addInitScript(RECORD_START);
+    const scene = await holdChunks(page, ['sceneMain']);
+    await page.goto('/');
+    await expect.poll(scene.requested).toBe(1);
+    await page.mouse.click(640, 360);
+    expect(await audioContexts(page)).toBe(0);
+    await scene.release();
+    await waitForScene(page);
+    // No second press.
+    await expect.poll(() => bedDelay(page), { timeout: 15_000 }).not.toBeNull();
+    expect(await audioContexts(page)).toBe(1);
+  });
 });
 
 test.describe("nothing of another zone over the landing's video", () => {

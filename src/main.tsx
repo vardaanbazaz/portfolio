@@ -17,7 +17,20 @@ function showFallback() {
 }
 
 if (sceneSupported(window)) {
-  import('./sceneMain').then(({ mountScene }) => mountScene(root, showFallback), showFallback);
+  // A press while the scene's code is still on its way (the loading screen is up) is the visitor's first press, and
+  // starts sound once that code arrives. The same presses as `GESTURE_EVENTS` in src/sound/sound.ts, which takes
+  // over from here.
+  let pressed = false;
+  const presses = ['pointerdown', 'pointerup', 'click', 'keydown'] as const;
+  const notePress = () => {
+    pressed = true;
+  };
+  for (const type of presses) window.addEventListener(type, notePress, { capture: true, passive: true });
+  const mount = ({ mountScene }: typeof import('./sceneMain')) => {
+    for (const type of presses) window.removeEventListener(type, notePress, { capture: true });
+    mountScene(root, showFallback, pressed);
+  };
+  import('./sceneMain').then(mount, showFallback);
 } else {
   showFallback();
 }

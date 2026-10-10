@@ -563,6 +563,20 @@ h2:focus-visible,
   z-index: 20;
 }
 
+/* Dev readout (?fps): what the last wheel notch scrolled. Under the frame-rate panel, clear of everything else. */
+.wheel-readout {
+  position: fixed;
+  top: 52px;
+  left: 0;
+  z-index: 20;
+  max-width: calc(100vw - 32px);
+  padding: 2px 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: 11px/1.4 ui-monospace, monospace;
+  pointer-events: none;
+}
+
 /* Pressed means muted. */
 .mute-toggle[aria-pressed='true'] {
   background: var(--text);

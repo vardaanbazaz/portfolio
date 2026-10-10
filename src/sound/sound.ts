@@ -1,7 +1,8 @@
 /**
  * Interface sound: the synthesized fly-in and fly-out sweeps, and each zone's looping ambient bed (a bundled file).
  * The only module that touches Web Audio. The AudioContext is created only by `unlock()`, which runs on the
- * visitor's first pointer or key press anywhere on the page; never at import time or on load, and never while muted.
+ * visitor's first pointer or key press anywhere on the page (or at `listen()`, for a press that came before it);
+ * never at import time or on a load nobody has pressed during, and never while muted.
  * Ambient files are fetched only once that context exists.
  */
 
@@ -186,9 +187,11 @@ export const sound = {
 
   /**
    * Runs `unlock()` on every pointer and key press on `target`, and suspends the context while `doc` is hidden.
-   * Call once at startup. Creates nothing by itself.
+   * Call once at startup. Creates nothing by itself, unless `pressedBefore`: the visitor pressed before this ran
+   * (during the loading screen, before the scene's code arrived). That press counts as the first; the browser still
+   * lets the page start sound on it.
    */
-  listen(target: EventTarget, doc: VisibilitySource) {
+  listen(target: EventTarget, doc: VisibilitySource, pressedBefore = false) {
     visibility = doc;
     const unlock = () => sound.unlock();
     for (const type of GESTURE_EVENTS) target.addEventListener(type, unlock, { capture: true, passive: true });
@@ -197,6 +200,7 @@ export const sound = {
       for (const type of GESTURE_EVENTS) target.removeEventListener(type, unlock, { capture: true });
       doc.removeEventListener('visibilitychange', onVisibilityChange);
     };
+    if (pressedBefore) unlock();
   },
 
   /** Stops for good: no more presses create or wake the context, and an existing one is closed.
