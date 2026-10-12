@@ -8,9 +8,9 @@ import {
   GATE_FOCUS_RING_OFFSET_PX,
   GATE_FOCUS_RING_PX,
   GATE_GAP_PX,
+  GATE_GESTURE_GAP_SECONDS,
   GATE_ICON_GAP_PX,
   GATE_ICON_PX,
-  GATE_PULSE_MIN_INTERVAL_SECONDS,
   GATE_PULSE_SCALE,
   GATE_PULSE_SECONDS,
   GATE_QUIET_FONT_PX,
@@ -133,18 +133,33 @@ function gateButton(className: string, onPress: () => void): HTMLButtonElement {
   return button;
 }
 
-/** One short pulse of the Enter button, at most once per `GATE_PULSE_MIN_INTERVAL_SECONDS`. Counted on the button
- *  (`data-pulses`) so a test can see it. */
-let lastPulse = -Infinity;
+/** Tells scroll gestures apart. Takes each wheel, touch-drag or scroll-key event's time, in ms, and whether it only
+ *  continues one already counted (a held key's repeats, the later moves of a touch already counted), and returns
+ *  true when it starts a new gesture: the first after a quiet gap of `gapSeconds`. */
+export function scrollGestures(gapSeconds: number) {
+  let last = -Infinity;
+  return (time: number, continuing: boolean) => {
+    const starts = !continuing && time - last >= gapSeconds * 1000;
+    last = time;
+    return starts;
+  };
+}
+
+/** One short pulse of the Enter button. Counted on the button (`data-pulses`) so a test can see it. One still running
+ *  is replaced by the new one, which starts from wherever the old one had got to, so nothing stacks or jumps. */
+let pulseAnimation: Animation | undefined;
 function pulse(button: HTMLElement) {
-  const now = performance.now();
-  if (now - lastPulse < GATE_PULSE_MIN_INTERVAL_SECONDS * 1000) return;
-  lastPulse = now;
   button.dataset.pulses = String(Number(button.dataset.pulses ?? 0) + 1);
-  const keyframes = reducedMotion()
-    ? [{ borderColor: 'rgb(206 202 175 / 0.6)' }, { borderColor: 'rgb(206 202 175 / 1)' }, { borderColor: 'rgb(206 202 175 / 0.6)' }]
-    : [{ transform: 'scale(1)' }, { transform: `scale(${GATE_PULSE_SCALE})` }, { transform: 'scale(1)' }];
-  button.animate?.(keyframes, { duration: GATE_PULSE_SECONDS * 1000, easing: 'ease-in-out' });
+  const property = reducedMotion() ? 'borderColor' : 'transform';
+  const keyframes: Keyframe[] =
+    property === 'borderColor'
+      ? [{ borderColor: 'rgb(206 202 175 / 0.6)' }, { borderColor: 'rgb(206 202 175 / 1)' }, { borderColor: 'rgb(206 202 175 / 0.6)' }]
+      : [{ transform: 'scale(1)' }, { transform: `scale(${GATE_PULSE_SCALE})` }, { transform: 'scale(1)' }];
+  if (pulseAnimation?.playState === 'running') {
+    keyframes[0] = { [property]: getComputedStyle(button)[property] };
+    pulseAnimation.cancel();
+  }
+  pulseAnimation = button.animate?.(keyframes, { id: 'gate-pulse', duration: GATE_PULSE_SECONDS * 1000, easing: 'ease-in-out' });
 }
 
 /** Replaces the bar with the entry gate, in the same place, and waits for the visitor's press. Shown once. */
@@ -211,14 +226,20 @@ function showGate(entry: EntryGate) {
   if (!reducedMotion()) gateEl.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: GATE_FADE_IN_SECONDS * 1000, easing: 'ease-out' });
   (entry.savedMuted ? quietButton : enterButton).focus({ preventScroll: true });
 
-  // Nothing scrolls under the gate: a scroll attempt pulses Enter instead. Tab moves between the two buttons only.
-  const onScrollAttempt = (event: Event) => {
+  // Nothing scrolls under the gate: each scroll gesture pulses Enter once instead. Tab moves between the two buttons
+  // only. Gaps are measured between the events' own times, so a busy frame between two of them doesn't split one.
+  const startsGesture = scrollGestures(GATE_GESTURE_GAP_SECONDS);
+  const scrollAttempt = (event: Event, continuing: boolean) => {
+    if (startsGesture(event.timeStamp, continuing)) pulse(enterButton);
+  };
+  const onWheel = (event: Event) => {
     if (event.cancelable) event.preventDefault();
-    pulse(enterButton);
+    scrollAttempt(event, false);
   };
   const onKey = (event: KeyboardEvent) => {
     if (SCROLL_KEYS.has(event.key)) {
-      onScrollAttempt(event);
+      event.preventDefault();
+      scrollAttempt(event, event.repeat);
       return;
     }
     if (event.key !== 'Tab') return;
@@ -228,23 +249,36 @@ function showGate(entry: EntryGate) {
     next.focus();
   };
   // A touch drag: touchmove where the browser sends it, and the touch's own pointer moves, since Chromium sends no
-  // touchmove for a drag when nothing on the page can scroll.
+  // touchmove for a drag when nothing on the page can scroll. Every move counts once the touch is past the slop, and
+  // after its first counted move the rest continue its gesture.
   let touchFrom: { x: number; y: number } | null = null;
+  let touchPastSlop = false;
+  let touchCounted = false;
+  const touchAttempt = (event: Event) => {
+    scrollAttempt(event, touchCounted);
+    touchCounted = true;
+  };
+  const onTouchMove = (event: Event) => {
+    if (event.cancelable) event.preventDefault();
+    touchAttempt(event);
+  };
   const onPointerDown = (event: PointerEvent) => {
     touchFrom = event.pointerType === 'touch' ? { x: event.clientX, y: event.clientY } : null;
+    touchPastSlop = false;
+    touchCounted = false;
   };
   const onPointerMove = (event: PointerEvent) => {
     if (event.pointerType !== 'touch' || !touchFrom) return;
-    if (Math.hypot(event.clientX - touchFrom.x, event.clientY - touchFrom.y) < GATE_TOUCH_SLOP_PX) return;
-    touchFrom = null;
-    pulse(enterButton);
+    if (!touchPastSlop && Math.hypot(event.clientX - touchFrom.x, event.clientY - touchFrom.y) < GATE_TOUCH_SLOP_PX) return;
+    touchPastSlop = true;
+    touchAttempt(event);
   };
   const onPointerEnd = () => {
     touchFrom = null;
   };
   const listeners: [string, EventListener][] = [
-    ['wheel', onScrollAttempt],
-    ['touchmove', onScrollAttempt],
+    ['wheel', onWheel],
+    ['touchmove', onTouchMove],
     ['keydown', onKey as EventListener],
     ['pointerdown', onPointerDown as EventListener],
     ['pointermove', onPointerMove as EventListener],

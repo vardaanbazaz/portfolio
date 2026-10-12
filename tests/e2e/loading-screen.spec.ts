@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { PAGE_PATHS } from '../../src/routes';
-import { GATE_FADE_IN_SECONDS, GATE_PULSE_MIN_INTERVAL_SECONDS, GATE_TARGET_MIN_PX, LOADING_SCREEN_LIMIT_SECONDS } from '../../src/scene/tuning';
+import { GATE_FADE_IN_SECONDS, GATE_GESTURE_GAP_SECONDS, GATE_TARGET_MIN_PX, LOADING_SCREEN_LIMIT_SECONDS } from '../../src/scene/tuning';
 import {
   audioContexts,
   audioContextStates,
@@ -32,6 +32,27 @@ const TOTAL_STEPS = 2 + IMAGES.length + PAGE_CHUNKS.length + PANEL_CHUNKS.length
 /** The background fetch takes the chunks in turn and the panels come last, so holding the last one back leaves every
  *  other step done. */
 const LAST_CHUNK = 'CitationPanel';
+
+/** How many times the Enter button has pulsed. */
+const pulses = (page: Page) => enterButton(page).evaluate((el) => Number(el.dataset.pulses ?? 0));
+
+/** Records, for each pulse just after it starts, how many pulse animations the Enter button has and where the new one
+ *  starts from: `scale(1)` at rest, or the scale a running pulse had reached when this one replaced it. */
+const RECORD_PULSES = () => {
+  const button = document.querySelector<HTMLElement>('.loading-gate-enter')!;
+  const w = window as unknown as { pulseLog: { running: number; from: string }[] };
+  w.pulseLog = [];
+  new MutationObserver((records) => {
+    const running = button.getAnimations().filter((a) => a.id === 'gate-pulse');
+    const from = String((running[0]?.effect as KeyframeEffect | undefined)?.getKeyframes()[0]?.transform);
+    for (const _ of records) w.pulseLog.push({ running: running.length, from });
+  }).observe(button, { attributeFilter: ['data-pulses'] });
+};
+const pulseLog = (page: Page) =>
+  page.evaluate(() => (window as unknown as { pulseLog: { running: number; from: string }[] }).pulseLog);
+
+/** Waits out a scroll gesture: longer than the quiet gap that ends one. */
+const quietGap = (page: Page) => page.waitForTimeout(GATE_GESTURE_GAP_SECONDS * 1000 + 250);
 
 /** Records, in page time, when the scene's first frame reached the loading screen and when the entry gate took the
  *  bar's place (where the screen used to lift by itself). */
@@ -361,52 +382,105 @@ test.describe('the entry gate', () => {
     await expect.poll(() => audioContextStates(page)).toEqual(['running']);
   });
 
-  test('a wheel or a scroll key under the gate moves nothing and pulses Enter, at most once per interval', async ({ page }) => {
+  test('a wheel under the gate moves nothing and pulses Enter once per gesture', async ({ page }) => {
     await page.goto('/');
     await expect(gate(page)).toBeVisible({ timeout: 20_000 });
-    const pulses = () => enterButton(page).evaluate((el) => Number(el.dataset.pulses ?? 0));
     await page.mouse.move(640, 200);
-    await page.mouse.wheel(0, 2000);
-    await page.mouse.wheel(0, 2000);
-    await page.keyboard.press('PageDown');
-    await page.waitForTimeout(300);
-    expect(await page.evaluate(() => window.scrollY)).toBe(0);
-    expect(await pulses()).toBe(1);
-    await page.waitForTimeout(GATE_PULSE_MIN_INTERVAL_SECONDS * 1000 + 100);
-    await page.keyboard.press('ArrowDown');
-    expect(await pulses()).toBe(2);
+
+    // Five separate gestures, 0.5 s apart: five pulses. Each after the first starts while the last pulse still
+    // runs, and replaces it from where it had got to.
+    await page.evaluate(RECORD_PULSES);
+    for (let i = 0; i < 5; i++) {
+      const at = Date.now();
+      await page.mouse.wheel(0, 400);
+      await page.waitForTimeout(500 - (Date.now() - at));
+    }
+    expect(await pulses(page)).toBe(5);
+
+    // One continuous gesture of 40 events: one pulse.
+    await quietGap(page);
+    for (let i = 0; i < 40; i++) {
+      await page.mouse.wheel(0, 50);
+      await page.waitForTimeout(16);
+    }
+    await quietGap(page);
+    expect(await pulses(page)).toBe(6);
+    const log = await pulseLog(page);
+    expect(log.map((p) => p.running)).toEqual([1, 1, 1, 1, 1, 1]);
+    for (const p of log.slice(1, 5)) expect(p.from).not.toBe('scale(1)');
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
 
-    // The same wheel scrolls once the gate is passed, so the one above really would have.
+    // The same wheel scrolls once the gate is passed, so the ones above really would have.
     await passGate(page);
     await page.mouse.wheel(0, 2000);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   });
 
+  test('a scroll key under the gate moves nothing and pulses Enter once per press, and once for a held key', async ({ page }) => {
+    await page.goto('/');
+    await expect(gate(page)).toBeVisible({ timeout: 20_000 });
+
+    await page.evaluate(RECORD_PULSES);
+    for (let i = 0; i < 5; i++) {
+      const at = Date.now();
+      await page.keyboard.press(i % 2 ? 'ArrowDown' : 'PageDown');
+      await page.waitForTimeout(500 - (Date.now() - at));
+    }
+    expect(await pulses(page)).toBe(5);
+
+    // Held: the system's repeat starts after a delay longer than the gap, then repeats about every 33 ms. A second
+    // down on a key already down is a repeat.
+    await quietGap(page);
+    await page.keyboard.down('ArrowDown');
+    await page.waitForTimeout(500);
+    for (let i = 0; i < 40; i++) {
+      await page.keyboard.down('ArrowDown');
+      await page.waitForTimeout(33);
+    }
+    await page.keyboard.up('ArrowDown');
+    await quietGap(page);
+    expect(await pulses(page)).toBe(6);
+    const log = await pulseLog(page);
+    expect(log.map((p) => p.running)).toEqual([1, 1, 1, 1, 1, 1]);
+    for (const p of log.slice(1, 5)) expect(p.from).not.toBe('scale(1)');
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  });
+
   test.describe('on a touch screen', () => {
     test.use({ hasTouch: true });
 
-    test('a touch scroll under the gate moves nothing and pulses Enter', async ({ page }) => {
+    test('a touch drag under the gate moves nothing and pulses Enter once per drag', async ({ page }) => {
       await page.goto('/');
       await expect(gate(page)).toBeVisible({ timeout: 20_000 });
-      const pulses = () => enterButton(page).evaluate((el) => Number(el.dataset.pulses ?? 0));
       const cdp = await page.context().newCDPSession(page);
       // A touch drag upward, which scrolls the page down, from low on the screen away from the buttons. Raw touch
       // input: Chromium's synthesized scroll gesture scrolls nothing in headless runs, even on the HTML site.
-      const swipe = async () => {
+      const drag = async (moves: number, step: number, pause = 0) => {
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 640, y: 650 }] });
-        for (let i = 1; i <= 20; i++) {
-          await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 640, y: 650 - i * 20 }] });
+        for (let i = 1; i <= moves; i++) {
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 640, y: 650 - i * step }] });
+          if (pause) await page.waitForTimeout(pause);
         }
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
       };
-      await swipe();
-      await page.waitForTimeout(300);
+
+      await page.evaluate(RECORD_PULSES);
+      for (let i = 0; i < 5; i++) {
+        await drag(20, 20);
+        await page.waitForTimeout(500);
+      }
+      expect(await pulses(page)).toBe(5);
+
+      // One continuous drag of 40 moves: one pulse.
+      await quietGap(page);
+      await drag(40, 10, 16);
+      await quietGap(page);
+      expect(await pulses(page)).toBe(6);
+      expect((await pulseLog(page)).map((p) => p.running)).toEqual([1, 1, 1, 1, 1, 1]);
       expect(await page.evaluate(() => window.scrollY)).toBe(0);
-      expect(await pulses()).toBe(1);
 
       await passGate(page);
-      await swipe();
+      await drag(20, 20);
       await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
     });
   });

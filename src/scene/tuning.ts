@@ -45,12 +45,14 @@ export const GATE_FOCUS_RING_OFFSET_PX = 2;
 /** The gate never comes closer than this to either side of the screen, in px. */
 export const GATE_SIDE_GUTTER_PX = 16;
 
-/** A wheel, touch scroll or scroll key while the gate shows pulses the Enter button once, this long, scaling it up
- *  to `GATE_PULSE_SCALE` and back (with reduced motion, only its border brightens), and no more often than every
- *  `GATE_PULSE_MIN_INTERVAL_SECONDS`. */
+/** A scroll gesture while the gate shows pulses the Enter button once, at its start, this long, scaling it up to
+ *  `GATE_PULSE_SCALE` and back (with reduced motion, only its border brightens). */
 export const GATE_PULSE_SECONDS = 0.6;
 export const GATE_PULSE_SCALE = 1.04;
-export const GATE_PULSE_MIN_INTERVAL_SECONDS = 2;
+
+/** A scroll gesture under the gate is a run of wheel, touch-drag and scroll-key events with no quiet gap this long
+ *  between them, in seconds. A held key and a finger that stays down are one gesture however long they last. */
+export const GATE_GESTURE_GAP_SECONDS = 0.25;
 
 /** A touch that moves this many px under the gate counts as a scroll attempt; less is a tap. */
 export const GATE_TOUCH_SLOP_PX = 10;
