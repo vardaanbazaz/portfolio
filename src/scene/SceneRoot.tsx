@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
 import { LANDING, SECTION_LINES, SECTION_NOTES, SECTION_TITLES } from '../content/scene';
@@ -129,7 +129,15 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
         <p className="landing-gloss verse-gloss">
           {LANDING.gloss.text} <cite>{LANDING.gloss.source}</cite>
         </p>
-        <p className="landing-subline">{LANDING.subline}</p>
+        {/* Wraps only between its items, each separator staying at the end of the line before. */}
+        <p className="landing-subline">
+          {LANDING.subline.split(' · ').map((item, i) => (
+            <Fragment key={item}>
+              {i > 0 && '\u00a0· '}
+              <span className="landing-subline-item">{item}</span>
+            </Fragment>
+          ))}
+        </p>
         <p className="landing-cue" aria-hidden="true">
           <span className="landing-cue-label">{LANDING.scrollCue.label}</span>
           <span>{LANDING.scrollCue.arrow}</span>

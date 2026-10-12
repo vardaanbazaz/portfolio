@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { PAGE_PATHS } from '../../src/routes';
 import { SECTION_T } from '../../src/scene/cameraPath';
-import { LAYER_REST_SCALE, MIST_OPACITY, STAR_COUNT } from '../../src/scene/tuning';
+import { LAYER_REST_SCALE, MIST_OPACITY, STAR_SKY_FRACTION, STAR_TIERS } from '../../src/scene/tuning';
 import { SECTION_IDS, type SectionId } from '../../src/sections/contract';
 import {
   audioContexts,
@@ -46,7 +46,12 @@ test('the landing backdrop is two still images behind the canvas, with mist and 
     await expect(images(page).nth(i)).toHaveJSProperty('complete', true);
   }
   await expect(page.locator('.backdrop video')).toHaveCount(0);
-  await expect(layer(page).locator('.backdrop-star')).toHaveCount(STAR_COUNT);
+  // Only the medium and bright stars are elements; the tiny ones are drawn once into a single image.
+  await expect(layer(page).locator('.backdrop-star')).toHaveCount(STAR_TIERS.medium.count + STAR_TIERS.bright.count);
+  const still = layer(page).locator('img.backdrop-stars-still');
+  await expect(still).toHaveAttribute('data-count', String(STAR_TIERS.tiny.count));
+  await expect(still).toHaveAttribute('src', /^data:image\/png;/);
+  await expect(still).toHaveJSProperty('complete', true);
   await expect(layer(page).locator('.backdrop-mist')).toHaveCount(1);
   // The effects fade in once the loading screen has lifted.
   await expect(layer(page)).toHaveAttribute('data-released', '');
@@ -72,7 +77,11 @@ test('the stars sit in the same places on every load, all in the upper sky', asy
   await page.reload();
   await waitForScene(page);
   expect(await places()).toEqual(first);
-  for (const [, top] of first) expect(parseFloat(top)).toBeLessThan(45);
+  // The horizon as the layer has it, in % of the view's height.
+  const horizon = parseFloat(await layer(page).evaluate((el) => (el as HTMLElement).style.getPropertyValue('--horizon')));
+  expect(horizon).toBeGreaterThan(50);
+  const skyLimit = STAR_SKY_FRACTION * horizon;
+  for (const [, top] of first) expect(parseFloat(top)).toBeLessThan(skyLimit);
 });
 
 test('the ground layer shifts against a mouse pointer, eased', async ({ page }) => {

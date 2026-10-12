@@ -159,7 +159,7 @@ test('the loading screen waits for both landing images to decode', async ({ page
     expect(first!.at, `${name} decoded before the screen lifted`).toBeLessThanOrEqual(liftedAt);
   }
   // Both are in the page, decoded, behind the canvas.
-  const images = page.locator('.backdrop[data-zone="landing"] img');
+  const images = page.locator('.backdrop[data-zone="landing"] img.backdrop-image');
   await expect(images).toHaveCount(2);
   for (let i = 0; i < 2; i++) await expect(images.nth(i)).toHaveJSProperty('complete', true);
 });

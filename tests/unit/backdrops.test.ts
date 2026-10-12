@@ -9,6 +9,7 @@ import {
   motionRunning,
   sectionOpacity,
   starField,
+  starKeep,
   worldOpacity,
   type ZoneBackdrop,
 } from '../../src/environment/backdrops';
@@ -20,11 +21,13 @@ import {
   LAYER_REST_SCALE,
   PARALLAX_MAX_X_PX,
   PARALLAX_MAX_Y_PX,
-  STAR_COUNT,
-  STAR_OPACITY,
+  STAR_COLOR,
+  STAR_GLOW_CLEAR_HALF_WIDTH,
+  STAR_GLOW_FADE_WIDTH,
   STAR_PERIOD_SECONDS,
   STAR_SEED,
-  STAR_TOP_FRACTION,
+  STAR_SKY_FRACTION,
+  STAR_TIERS,
   SWEEP_PEAK_GAIN,
 } from '../../src/scene/tuning';
 import { SECTION_IDS } from '../../src/sections/contract';
@@ -290,28 +293,84 @@ describe('layerPose', () => {
 });
 
 describe('starField', () => {
+  const [landing] = BACKDROPS;
+  const field = (seed?: number) => starField(landing.horizon, landing.focusX, seed);
+  const tier = (name: keyof typeof STAR_TIERS) => field().filter((star) => star.tier === name);
+
   it('gives the same stars for the same seed, every time', () => {
-    expect(starField(STAR_SEED)).toEqual(starField(STAR_SEED));
-    expect(starField()).toEqual(starField(STAR_SEED, STAR_COUNT));
-    expect(starField(STAR_SEED + 1)).not.toEqual(starField(STAR_SEED));
+    expect(field(STAR_SEED)).toEqual(field(STAR_SEED));
+    expect(field()).toEqual(field(STAR_SEED));
+    expect(field(STAR_SEED + 1)).not.toEqual(field(STAR_SEED));
   });
 
-  it('places small, pale points in the upper sky, each with its own period and phase', () => {
-    const stars = starField();
-    expect(stars).toHaveLength(STAR_COUNT);
+  it('has about 140 stars: three quarters tiny, a fifth medium, the rest bright', () => {
+    const total = field().length;
+    expect(total).toBeGreaterThanOrEqual(130);
+    expect(total).toBeLessThanOrEqual(150);
+    for (const name of ['tiny', 'medium', 'bright'] as const) expect(tier(name)).toHaveLength(STAR_TIERS[name].count);
+    expect(tier('tiny').length / total).toBeCloseTo(0.75, 1);
+    expect(tier('medium').length / total).toBeCloseTo(0.2, 1);
+    expect(tier('bright').length / total).toBeCloseTo(0.05, 1);
+  });
+
+  it('keeps each tier to its size and opacity, and only the medium and bright stars twinkle', () => {
+    for (const name of ['tiny', 'medium', 'bright'] as const) {
+      const { sizePx, opacity, twinkles } = STAR_TIERS[name];
+      for (const star of tier(name)) {
+        expect(star.size).toBeGreaterThanOrEqual(sizePx[0]);
+        expect(star.size).toBeLessThanOrEqual(sizePx[1]);
+        expect(star.twinkles).toBe(twinkles);
+        if (twinkles) {
+          expect([star.min, star.max]).toEqual(opacity);
+          expect(star.period).toBeGreaterThanOrEqual(STAR_PERIOD_SECONDS[0]);
+          expect(star.period).toBeLessThanOrEqual(STAR_PERIOD_SECONDS[1]);
+          expect(star.phase).toBeGreaterThanOrEqual(0);
+          expect(star.phase).toBeLessThan(1);
+        } else {
+          expect(star.min).toBe(star.max);
+          expect(star.max).toBeGreaterThanOrEqual(opacity[0]);
+          expect(star.max).toBeLessThanOrEqual(opacity[1]);
+        }
+      }
+    }
+    expect(tier('tiny').map((s) => s.size)).toEqual(tier('tiny').map(() => 1));
+    expect(tier('medium').map((s) => s.size)).toEqual(tier('medium').map(() => 1.5));
+    const twinkling = field().filter((s) => s.twinkles);
+    expect(new Set(twinkling.map((s) => s.period)).size).toBe(twinkling.length);
+  });
+
+  it('tints a few bright stars slightly warm or blue, and no others', () => {
+    const tinted = field().filter((s) => s.color !== STAR_COLOR);
+    expect(tinted.length).toBeGreaterThan(0);
+    expect(tinted.length).toBeLessThan(tier('bright').length);
+    for (const star of tinted) expect(star.tier).toBe('bright');
+  });
+
+  it('fills the sky from the top, thinning toward the horizon, with none in its lowest part', () => {
+    const sky = landing.horizon;
+    const stars = field();
     for (const star of stars) {
       expect(star.x).toBeGreaterThanOrEqual(0);
       expect(star.x).toBeLessThan(1);
       expect(star.y).toBeGreaterThanOrEqual(0);
-      expect(star.y).toBeLessThan(STAR_TOP_FRACTION);
-      expect([1, 2]).toContain(star.size);
-      expect([star.min, star.max]).toEqual(STAR_OPACITY);
-      expect(star.period).toBeGreaterThanOrEqual(STAR_PERIOD_SECONDS[0]);
-      expect(star.period).toBeLessThanOrEqual(STAR_PERIOD_SECONDS[1]);
-      expect(star.phase).toBeGreaterThanOrEqual(0);
-      expect(star.phase).toBeLessThan(1);
+      expect(star.y).toBeLessThan(STAR_SKY_FRACTION * sky);
     }
-    expect(new Set(stars.map((s) => s.period)).size).toBe(STAR_COUNT);
+    const band = (from: number, to: number) => stars.filter((s) => s.y >= from * sky && s.y < to * sky).length;
+    expect(band(0, 0.25)).toBeGreaterThan(band(0.25, 0.5));
+    expect(band(0.25, 0.5)).toBeGreaterThan(band(0.5, 0.85));
+  });
+
+  it("thins out around the glow's centre column, to none at its middle", () => {
+    const glow = landing.focusX;
+    expect(starKeep(glow, glow)).toBe(0);
+    expect(starKeep(glow + STAR_GLOW_CLEAR_HALF_WIDTH + STAR_GLOW_FADE_WIDTH / 2, glow)).toBeCloseTo(0.5);
+    expect(starKeep(glow - STAR_GLOW_CLEAR_HALF_WIDTH - STAR_GLOW_FADE_WIDTH, glow)).toBe(1);
+    const stars = field();
+    for (const star of stars) expect(Math.abs(star.x - glow)).toBeGreaterThan(STAR_GLOW_CLEAR_HALF_WIDTH);
+    const near = stars.filter((s) => Math.abs(s.x - glow) < STAR_GLOW_CLEAR_HALF_WIDTH + STAR_GLOW_FADE_WIDTH).length;
+    const width = 2 * STAR_GLOW_FADE_WIDTH;
+    // Fewer per unit of width beside the cleared column than across the rest of the sky.
+    expect(near / width).toBeLessThan((stars.length - near) / (1 - 2 * (STAR_GLOW_CLEAR_HALF_WIDTH + STAR_GLOW_FADE_WIDTH)));
   });
 });
 

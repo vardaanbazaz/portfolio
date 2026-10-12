@@ -112,18 +112,42 @@ export const LAYER_PUSH_PX = 30;
 export const LAYER_PUSH_SCALE = 1.08;
 
 /** Mist: the band's height as a fraction of the viewport height, its opacity, and the seconds of one seamless loop
- *  of its sideways drift. */
-export const MIST_HEIGHT = 0.12;
-export const MIST_OPACITY = 0.35;
+ *  of its sideways drift. A soft haze along the horizon, hiding nothing. */
+export const MIST_HEIGHT = 0.08;
+export const MIST_OPACITY = 0.2;
 export const MIST_LOOP_SECONDS = 90;
 
-/** Stars: how many, from which seed, in the top fraction of the view, their size range in px, their opacity range
- *  and the range of their own fading periods in seconds. */
-export const STAR_COUNT = 25;
+/** One tier of stars: how many, their size range in px, their opacity range, and whether they fade in and out. */
+export interface StarTier {
+  count: number;
+  sizePx: [min: number, max: number];
+  opacity: [min: number, max: number];
+  twinkles: boolean;
+}
+
+/** Stars, an open sky before dawn: many tiny ones drawn once, fewer medium and bright ones that fade in and out
+ *  between the ends of their opacity range. */
+export const STAR_TIERS = {
+  tiny: { count: 105, sizePx: [1, 1], opacity: [0.25, 0.6], twinkles: false },
+  medium: { count: 28, sizePx: [1.5, 1.5], opacity: [0.4, 0.8], twinkles: true },
+  bright: { count: 7, sizePx: [2, 2.5], opacity: [0.6, 1], twinkles: true },
+} as const satisfies Record<string, StarTier>;
 export const STAR_SEED = 2047;
-export const STAR_TOP_FRACTION = 0.45;
-export const STAR_SIZE_PX: [min: number, max: number] = [1, 2];
-export const STAR_OPACITY: [min: number, max: number] = [0.3, 1];
+/** Every star sits above this fraction of the sky (from the top of the view down to the horizon); the lowest part,
+ *  just over the horizon, has none. */
+export const STAR_SKY_FRACTION = 0.85;
+/** How strongly stars bunch toward the top: a star's depth down the sky is a uniform draw raised to this power. */
+export const STAR_TOP_BIAS = 1.8;
+/** The dawn glow washes out stars around its centre column, where the landing text sits: none within this half-width
+ *  of it, as a fraction of the view's width, then more and more over the next `STAR_GLOW_FADE_WIDTH`, until all are
+ *  kept. Wide enough that no star sits behind the landing text on screens 1280px wide and up. */
+export const STAR_GLOW_CLEAR_HALF_WIDTH = 0.17;
+export const STAR_GLOW_FADE_WIDTH = 0.12;
+/** Colours: most stars a pale blue-white; a few bright ones slightly warm or slightly blue. */
+export const STAR_COLOR = '#e2eaff';
+export const STAR_TINTS = ['#fff0d8', '#d4e0ff'] as const;
+/** The share of bright stars given one of `STAR_TINTS`. */
+export const STAR_TINT_SHARE = 0.45;
 export const STAR_PERIOD_SECONDS: [min: number, max: number] = [2.5, 6];
 
 /** Gain of a zone's ambient bed at full zone weight (0 to 1). Measured (EBU R128): the landing bed's file is

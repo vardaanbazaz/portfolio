@@ -137,10 +137,17 @@ h2:focus-visible,
   opacity: var(--mist-opacity);
 }
 
+/* The stars that don't twinkle, drawn once. */
+.backdrop-stars-still {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .backdrop-star {
   position: absolute;
   border-radius: 50%;
-  background: #e2eaff;
   opacity: var(--star-max);
   animation: backdrop-twinkle ease-in-out infinite alternate;
 }
@@ -189,12 +196,13 @@ h2:focus-visible,
   }
 }
 
-/* Darkens the upper sky under the landing text, just enough for AA contrast behind every small line (measured at
-   1920x1080, 1366x768 and 1280x720 against the lightest image pixel behind each line, with the code-drawn stars hidden). In pixels, as the text block
-   is, but never past two thirds of the height, so it is gone before the horizon and the bottom corners on short
-   screens too. */
+/* Darkens the upper sky under the landing text, just enough for contrast behind every line: at least 4.8 for each
+   small line and 3.2 for the name and verse (measured at 1920x1080, 1366x768 and 1280x720 against the lightest pixel
+   behind each line, with the stars showing and the text and its halo hidden). Deepest where the last small line sits
+   on short screens. In pixels, as the text block is, but never past two thirds of the height, so it is gone before
+   the horizon and the bottom corners on short screens too. */
 .backdrop-shade {
-  background: linear-gradient(to bottom, rgb(0 0 0 / 0.2), rgb(0 0 0 / 0.19) min(340px, 47vh), rgb(0 0 0 / 0) min(470px, 65vh));
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.2), rgb(0 0 0 / 0.27) min(340px, 47vh), rgb(0 0 0 / 0) min(470px, 65vh));
 }
 
 /* Sets the scrollable height that drives the camera. svh keeps it steady while mobile address bars show and hide. */
@@ -233,6 +241,8 @@ h2:focus-visible,
   padding: max(72px, 11vh) 16px 0;
   text-align: center;
   color: var(--landing-text);
+  /* A soft dark halo, so every line reads over stars and sky. */
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.55), 0 0 14px rgb(0 0 0 / 0.35);
 }
 
 .landing-name {
@@ -245,6 +255,7 @@ h2:focus-visible,
 .landing-line {
   margin: 12px 0 0;
   font-size: clamp(1.25rem, 4vw, 1.75rem);
+  font-weight: 500;
   line-height: 1.5;
   text-wrap: balance;
 }
@@ -257,9 +268,16 @@ h2:focus-visible,
   margin-top: 16px;
 }
 
+/* 15px on a 360px-wide screen up to 16.5px at 1920px: about 16px on laptops. */
 .landing-subline {
   margin: 8px 0 0;
-  font-size: 0.875rem;
+  font-size: clamp(0.9375rem, 0.9159rem + 0.0962vw, 1.0313rem);
+  font-weight: 500;
+  text-wrap: balance;
+}
+
+.landing-subline-item {
+  white-space: nowrap;
 }
 
 .landing-cue {
@@ -673,6 +691,10 @@ h2:focus-visible,
   color: var(--text);
 }
 
+/* 16px on a 360px-wide screen up to 19px at 1920px: about 18px on laptops. */
 .landing .landing-gloss {
   color: var(--landing-text);
+  font-size: clamp(1rem, 0.9567rem + 0.1923vw, 1.1875rem);
+  font-weight: 500;
+  text-wrap: balance;
 }

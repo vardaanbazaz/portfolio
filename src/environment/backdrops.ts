@@ -5,12 +5,17 @@ import {
   LAYER_REST_SCALE,
   PARALLAX_MAX_X_PX,
   PARALLAX_MAX_Y_PX,
-  STAR_COUNT,
-  STAR_OPACITY,
+  STAR_COLOR,
+  STAR_GLOW_CLEAR_HALF_WIDTH,
+  STAR_GLOW_FADE_WIDTH,
   STAR_PERIOD_SECONDS,
   STAR_SEED,
-  STAR_SIZE_PX,
-  STAR_TOP_FRACTION,
+  STAR_SKY_FRACTION,
+  STAR_TIERS,
+  STAR_TINT_SHARE,
+  STAR_TINTS,
+  STAR_TOP_BIAS,
+  type StarTier,
 } from '../scene/tuning';
 import type { SectionId } from '../sections/contract';
 import landingAmbient from './assets/landing-ambient.m4a';
@@ -139,14 +144,20 @@ export function layerPose(depth: number, weight: number, pointerX: number, point
   return { x, y, scale: Math.max(design, sideways, vertical) };
 }
 
-/** One star: its place as fractions of the view, its size in px, its opacity range, and its own fading period and
- *  phase (0 to 1 of a period). */
+export type StarTierName = keyof typeof STAR_TIERS;
+
+/** One star: its tier, its place as fractions of the view, its size in px, its colour, and its opacity range. A star
+ *  that twinkles fades between the ends of its range on its own period and phase (0 to 1 of a period); one that
+ *  doesn't sits at a single opacity, with `min` equal to `max`. */
 export interface Star {
+  tier: StarTierName;
   x: number;
   y: number;
   size: number;
+  color: string;
   min: number;
   max: number;
+  twinkles: boolean;
   period: number;
   phase: number;
 }
@@ -162,19 +173,45 @@ function seeded(seed: number) {
   };
 }
 
-/** The star field: `count` stars in the top `STAR_TOP_FRACTION` of the view, fixed by `seed`. */
-export function starField(seed: number = STAR_SEED, count: number = STAR_COUNT): Star[] {
+/** The share of stars kept at a column `x`, `glowX` being the glow's centre column: none within
+ *  `STAR_GLOW_CLEAR_HALF_WIDTH` of it, rising smoothly to all of them over `STAR_GLOW_FADE_WIDTH`. */
+export function starKeep(x: number, glowX: number): number {
+  const t = Math.min(Math.max((Math.abs(x - glowX) - STAR_GLOW_CLEAR_HALF_WIDTH) / STAR_GLOW_FADE_WIDTH, 0), 1);
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * The star field for a sky over a horizon at `horizon` of the view's height, with its dawn glow centred on column
+ * `glowX`, fixed by `seed`. Each tier's count of stars, bunched toward the top, none in the lowest part of the sky,
+ * and thinned out to none around the glow's column.
+ */
+export function starField(horizon: number, glowX: number, seed: number = STAR_SEED, tiers: Record<StarTierName, StarTier> = STAR_TIERS): Star[] {
   const next = seeded(seed);
-  const between = ([min, max]: [number, number]) => min + (max - min) * next();
-  return Array.from({ length: count }, () => ({
-    x: next(),
-    y: next() * STAR_TOP_FRACTION,
-    size: Math.round(between(STAR_SIZE_PX)),
-    min: STAR_OPACITY[0],
-    max: STAR_OPACITY[1],
-    period: between(STAR_PERIOD_SECONDS),
-    phase: next(),
-  }));
+  const between = ([min, max]: readonly [number, number]) => min + (max - min) * next();
+  const stars: Star[] = [];
+  for (const [tier, { count, sizePx, opacity, twinkles }] of Object.entries(tiers) as [StarTierName, StarTier][]) {
+    for (let i = 0; i < count; i++) {
+      let x = next();
+      while (next() >= starKeep(x, glowX)) x = next();
+      const y = Math.pow(next(), STAR_TOP_BIAS) * STAR_SKY_FRACTION * horizon;
+      const size = between(sizePx);
+      const level = between(opacity);
+      const tinted = tier === 'bright' && next() < STAR_TINT_SHARE;
+      stars.push({
+        tier,
+        x,
+        y,
+        size,
+        color: tinted ? STAR_TINTS[Math.floor(next() * STAR_TINTS.length)] : STAR_COLOR,
+        min: twinkles ? opacity[0] : level,
+        max: twinkles ? opacity[1] : level,
+        twinkles,
+        period: twinkles ? between(STAR_PERIOD_SECONDS) : 0,
+        phase: twinkles ? next() : 0,
+      });
+    }
+  }
+  return stars;
 }
 
 /** Gain of a zone's ambient bed: follows the zone's weight, and goes to 0 under an open page. */
