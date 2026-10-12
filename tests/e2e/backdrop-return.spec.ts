@@ -4,14 +4,13 @@ import { expect, scrollToSection, test, waitForScene } from './fixtures';
 
 /**
  * Coming back to the landing from further along the path. The backdrop layer and the dome together must cover the
- * view at every path position, so the bare page background never shows; a video that isn't playing shows its poster.
+ * view at every path position, so the bare page background never shows.
  */
 
 const layer = (page: Page) => page.locator('.backdrop[data-zone="landing"]');
-const video = (page: Page) => layer(page).locator('video');
 
-/** Upper right of the view, in the poster's blue sky and clear of the landing text and the shade. */
-const SKY = { x: 0.78, y: 0.55 };
+/** In the horizon glow, just below the landing text and above the horizon, where the shade has mostly gone. */
+const SKY = { x: 0.6, y: 0.49 };
 
 /** One pixel of what is on screen, the canvas and everything behind it composited. */
 async function sample(page: Page): Promise<number[]> {
@@ -35,8 +34,8 @@ async function sample(page: Page): Promise<number[]> {
 const pageBackground = (page: Page) =>
   page.evaluate(() => getComputedStyle(document.body).backgroundColor.match(/\d+/g)!.slice(0, 3).map(Number));
 
-/** Within this per channel of the page background counts as the background showing. Wide enough to catch a black
- *  video frame (0, 0, 0) and the landing's own dark dome colour too, neither of which belongs at the landing. */
+/** Within this per channel of the page background counts as the background showing. Wide enough to catch black
+ *  (0, 0, 0) and the landing's own dark dome colour too, neither of which belongs at the landing. */
 const BARE_TOLERANCE = 24;
 
 /** The view at the landing is the backdrop's sky, not the page background: polled while the camera settles. */
@@ -50,13 +49,8 @@ async function expectCovered(page: Page) {
     .toBe('covered');
 }
 
-/** The video's playback position moves on: it really plays, not just unpaused. */
-async function expectPlaying(page: Page, timeout = 15_000) {
-  const start = await video(page).evaluate((v: HTMLVideoElement) => v.currentTime);
-  await expect
-    .poll(() => video(page).evaluate((v: HTMLVideoElement, start) => !v.paused && v.currentTime !== start, start), { timeout })
-    .toBe(true);
-}
+/** The landing's motion runs again, as its layer says. */
+const expectMoving = (page: Page) => expect(layer(page)).toHaveAttribute('data-motion', 'running', { timeout: 15_000 });
 
 /** Long enough for the eased camera to bring the landing's weight to exactly 1 after coming back from Contact
  *  (about 5 s), after which nothing about the path changes from frame to frame. */
@@ -93,25 +87,10 @@ for (const { name, away, back } of RETURNS) {
       await away(page);
       await back(page);
       await expectCovered(page);
-      await expectPlaying(page);
+      await expectMoving(page);
       await page.waitForTimeout(SETTLE_MS);
       await expectCovered(page);
-      await expectPlaying(page);
-    });
-
-    test('a video the browser pauses after the camera has settled plays again, over its poster meanwhile', async ({ page }) => {
-      await page.goto('/');
-      await waitForScene(page);
-      await away(page);
-      await back(page);
-      await expectPlaying(page);
-      await page.waitForTimeout(SETTLE_MS);
-      // As a browser does on its own: to save power, after a decoder fault, or when a play() it accepted falls through.
-      await video(page).evaluate((v: HTMLVideoElement) => v.pause());
-      await expect(video(page)).toHaveCSS('opacity', '0');
-      await expectCovered(page);
-      await expectPlaying(page, 5_000);
-      await expectCovered(page);
+      await expectMoving(page);
     });
   });
 }
@@ -120,7 +99,7 @@ for (const { name, away, back } of RETURNS) {
  *  path says it should be. */
 async function readDome(page: Page) {
   const text = (await page.locator('[data-readout="backdrop"]').textContent()) ?? '';
-  const match = /landing ([\d.]+) .* dome ([\d.]+) \(path ([\d.]+)\)/.exec(text);
+  const match = /weight ([\d.]+) .* dome ([\d.]+) \(path ([\d.]+)\)/.exec(text);
   if (!match) throw new Error(`no dome in the readout: ${text}`);
   const [, landing, drawn, path] = match.map(Number);
   return { landing, drawn, path };
@@ -159,7 +138,7 @@ test('back at the landing, the dome fades with the path and never covers the bac
 test('a landing layer that lost its styles shows again, though the camera has settled', async ({ page }) => {
   await page.goto('/');
   await waitForScene(page);
-  await expectPlaying(page);
+  await expectMoving(page);
   const breakages: [string, (el: HTMLElement) => void][] = [
     ['inline styles removed', (el) => el.removeAttribute('style')],
     ['hidden', (el) => (el.style.visibility = 'hidden')],
@@ -170,82 +149,6 @@ test('a landing layer that lost its styles shows again, though the camera has se
       await layer(page).evaluate(breakLayer);
       await expect(layer(page)).toHaveCSS('visibility', 'visible');
       await expect(layer(page)).toHaveCSS('opacity', '1');
-      await expectCovered(page);
-    });
-  }
-});
-
-test.describe('when the browser refuses play()', () => {
-  test.describe.configure({ timeout: 120_000 });
-
-  test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      const w = window as unknown as { refusePlay: boolean };
-      w.refusePlay = false;
-      const play = HTMLMediaElement.prototype.play;
-      HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
-        if (w.refusePlay) return Promise.reject(new DOMException('refused by the test', 'NotAllowedError'));
-        return play.call(this);
-      };
-    });
-  });
-
-  const refusePlay = (page: Page, refuse: boolean) =>
-    page.evaluate((refuse) => {
-      (window as unknown as { refusePlay: boolean }).refusePlay = refuse;
-    }, refuse);
-
-  test('until well after the camera settles, the poster shows and the video plays once it is allowed', async ({ page }) => {
-    await page.goto('/');
-    await waitForScene(page);
-    await expectPlaying(page);
-    await scrollToSection(page, 'about');
-    await expect.poll(() => video(page).evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
-    await refusePlay(page, true);
-    await scrollToTop(page);
-    await expect(layer(page)).toHaveCSS('visibility', 'visible');
-    await page.waitForTimeout(SETTLE_MS);
-    expect(await video(page).evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
-    await expect(video(page)).toHaveCSS('opacity', '0');
-    await expectCovered(page);
-    await refusePlay(page, false);
-    await expectPlaying(page, 5_000);
-    await expectCovered(page);
-  });
-});
-
-test('a video that stalls at the landing gives way to its poster, but not at the brief wait of each loop seam', async ({ page }) => {
-  await page.goto('/');
-  await waitForScene(page);
-  await expectPlaying(page);
-  await expect(video(page)).toHaveCSS('opacity', '1');
-  const fire = (type: string) => video(page).evaluate((v: HTMLVideoElement, type) => v.dispatchEvent(new Event(type)), type);
-
-  // A seam: waiting, then playing again well within BACKDROP_STALL_SECONDS.
-  await fire('waiting');
-  await fire('playing');
-  await page.waitForTimeout(800);
-  await expect(video(page)).toHaveCSS('opacity', '1');
-
-  // A stall: still waiting past BACKDROP_STALL_SECONDS.
-  await fire('waiting');
-  await expect(video(page)).toHaveCSS('opacity', '0');
-  await expectCovered(page);
-  await fire('playing');
-  await expect(video(page)).toHaveCSS('opacity', '1');
-});
-
-test.describe('a video that never arrives', () => {
-  for (const [name, handle] of [
-    ['held', () => undefined],
-    ['failed', (route: import('@playwright/test').Route) => route.abort()],
-  ] as const) {
-    test(`shows its poster at the landing when ${name}`, async ({ page }) => {
-      await page.route(/\.mp4(\?.*)?$/, (route) => handle(route));
-      await page.goto('/');
-      await waitForScene(page);
-      await expect(layer(page)).toHaveCSS('visibility', 'visible');
-      await expect(video(page)).toHaveCSS('opacity', '0');
       await expectCovered(page);
     });
   }

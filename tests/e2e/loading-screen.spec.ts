@@ -3,11 +3,12 @@ import { PAGE_PATHS } from '../../src/routes';
 import { LOADING_SCREEN_LIMIT_SECONDS } from '../../src/scene/tuning';
 import { chunkPattern, expect, holdChunks, loadingScreen, marker, PAGE_CHUNKS, PANEL_CHUNKS, scrollToSection, test } from './fixtures';
 
-/** Backdrop posters (`BACKDROPS` in `src/environment/backdrops.ts`, which imports media files Playwright can't load). */
-const POSTERS = 1;
+/** Backdrop images: the landing's base and ground layers (`BACKDROPS` in `src/environment/backdrops.ts`, which
+ *  imports media files Playwright can't load). */
+const IMAGES = ['landing-base', 'landing-ground'];
 
-/** Every step the scene site counts: its code, its first frame, each backdrop poster, and each page and panel chunk. */
-const TOTAL_STEPS = 2 + POSTERS + PAGE_CHUNKS.length + PANEL_CHUNKS.length;
+/** Every step the scene site counts: its code, its first frame, each backdrop image, and each page and panel chunk. */
+const TOTAL_STEPS = 2 + IMAGES.length + PAGE_CHUNKS.length + PANEL_CHUNKS.length;
 
 /** The background fetch takes the chunks in turn and the panels come last, so holding the last one back leaves every
  *  other step done. */
@@ -116,6 +117,51 @@ test('the loading screen stays while a chunk is held back, and lifts when it arr
   // It lifted on the chunk's arrival, before the limit could have lifted it.
   const { drawnAt, liftedAt } = await recorded(page);
   expect(liftedAt - drawnAt).toBeLessThan(LOADING_SCREEN_LIMIT_SECONDS * 1000);
+});
+
+/** Records, in page time, when each image's decode() resolved, by its URL. */
+const RECORD_DECODES = () => {
+  const w = window as unknown as { decodes: { src: string; at: number }[] };
+  w.decodes = [];
+  const decode = HTMLImageElement.prototype.decode;
+  HTMLImageElement.prototype.decode = function (this: HTMLImageElement) {
+    return decode.call(this).then(() => {
+      w.decodes.push({ src: this.src, at: performance.now() });
+    });
+  };
+};
+
+test('the loading screen waits for both landing images to decode', async ({ page }) => {
+  await page.addInitScript(RECORD_LOADING);
+  await page.addInitScript(RECORD_DECODES);
+  // The first frame is held too, so the limit can't start while the image is held.
+  await page.addInitScript(HOLD_FRAMES);
+  const held: import('@playwright/test').Route[] = [];
+  await page.route(/landing-ground-[\w-]+\.webp(\?.*)?$/, (route) => {
+    held.push(route);
+  });
+  await page.goto('/');
+  // Every step but the first frame and the held image is done.
+  await expect(loadingScreen(page)).toHaveAttribute('data-done', String(TOTAL_STEPS - 2), { timeout: 20_000 });
+  await releaseFrames(page);
+  await expectAllButOne(page);
+  await expect(loadingScreen(page)).toBeVisible();
+
+  await expect.poll(() => held.length).toBeGreaterThan(0);
+  for (const route of held.splice(0)) await route.continue();
+  await page.unroute(/landing-ground-[\w-]+\.webp(\?.*)?$/);
+  await expect(loadingScreen(page)).toHaveCount(0);
+  const { liftedAt } = await recorded(page);
+  const decodes = await page.evaluate(() => (window as unknown as { decodes: { src: string; at: number }[] }).decodes);
+  for (const name of IMAGES) {
+    const first = decodes.find(({ src }) => new URL(src).pathname.includes(`/${name}-`));
+    expect(first, `${name} decoded`).toBeDefined();
+    expect(first!.at, `${name} decoded before the screen lifted`).toBeLessThanOrEqual(liftedAt);
+  }
+  // Both are in the page, decoded, behind the canvas.
+  const images = page.locator('.backdrop[data-zone="landing"] img');
+  await expect(images).toHaveCount(2);
+  for (let i = 0; i < 2; i++) await expect(images.nth(i)).toHaveJSProperty('complete', true);
 });
 
 test('the loading screen lifts at the limit if a chunk never arrives, and that panel shows its own loading line', async ({ page }) => {

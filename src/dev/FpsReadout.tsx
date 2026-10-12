@@ -83,36 +83,30 @@ const BLENDING = ['none', 'normal', 'add', 'subtract', 'multiply', 'custom'];
 const fixed = (value: number | undefined, digits: number) => (value === undefined ? '?' : value.toFixed(digits));
 
 /** One line on the landing backdrop and what is drawn over it, as the browser has it now. The player's own record of
- *  its layer and video is checked against the elements in the page, which a hot reload can leave out of step. */
+ *  its layer and images is checked against the elements in the page, which a hot reload can leave out of step. */
 function landingBackdropLine(): string {
   const player = backdropProbe('landing');
   const layer = document.querySelector<HTMLElement>('.backdrop[data-zone="landing"]');
-  const video = layer?.querySelector('video') ?? null;
-  const poster = layer?.querySelector('img') ?? null;
+  const images = layer ? Array.from(layer.querySelectorAll('img')) : [];
   const t = sceneProbe.pathT?.current;
   const layerStyle = layer && getComputedStyle(layer);
-  const videoOpacity = video ? Number(getComputedStyle(video).opacity) : 0;
   const dome = sceneProbe.dome;
   const material = dome?.material as ShaderMaterial | undefined;
   const domeOpacity = material?.uniforms?.opacity?.value as number | undefined;
+  const stale = player && (player.layer !== layer || player.images.some((image, i) => image !== images[i]));
   return [
     `t ${fixed(t, 4)}`,
+    'zone landing',
     // Enough digits to tell a weight a hair under 1 from 1, where the dome is still drawn.
-    `landing ${t === undefined ? '?' : backdropWeight(t, 'landing').toFixed(6)}`,
-    `layer ${layerStyle ? `${layerStyle.visibility} ${Number(layerStyle.opacity).toFixed(3)}` : 'none'}`,
+    `weight ${t === undefined ? '?' : backdropWeight(t, 'landing').toFixed(6)}`,
+    `layer ${layerStyle ? `${layerStyle.visibility === 'visible' ? 'visible' : 'hidden'} ${Number(layerStyle.opacity).toFixed(3)}` : 'none'}`,
     // The dome's opacity as its material has it, then as the path says it should be.
     `dome ${dome ? `${fixed(domeOpacity, 4)} (path ${t === undefined ? '?' : worldOpacity(t).toFixed(4)}) ${dome.visible ? 'drawn' : 'off'} ${BLENDING[material?.blending ?? -1] ?? material?.blending}` : 'none'}`,
-    `poster ${poster?.complete && poster.naturalWidth > 0 ? 'loaded' : 'not loaded'}`,
-    `showing ${video && videoOpacity > 0 ? `video ${videoOpacity.toFixed(2)}` : 'poster'}`,
-    video
-      ? `video ${video.paused ? 'paused' : 'playing'} rs ${video.readyState} at ${video.currentTime.toFixed(2)}s`
-      : 'video none',
+    player ? `images ${player.decoded}/${player.total} decoded` : 'images none',
+    `motion ${player?.running ? 'running' : 'stopped'}${player?.reducedMotion ? ' (reduced)' : ''}`,
     `quality ${sceneProbe.quality ?? '?'}`,
     `frameloop ${sceneProbe.frameloop ?? '?'}`,
-    player
-      ? `player ${player.held ? 'held' : 'released'}` +
-        `${player.layer === layer ? '' : ' layer stale'}${player.video === video ? '' : ' video stale'}`
-      : 'player none',
+    player ? `player ${player.held ? 'held' : 'released'}${stale ? ' stale' : ''}` : 'player none',
   ].join(' · ');
 }
 

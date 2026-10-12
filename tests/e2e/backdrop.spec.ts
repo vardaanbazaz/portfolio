@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { PAGE_PATHS } from '../../src/routes';
 import { SECTION_T } from '../../src/scene/cameraPath';
+import { LAYER_REST_SCALE, MIST_OPACITY, STAR_COUNT } from '../../src/scene/tuning';
 import { SECTION_IDS, type SectionId } from '../../src/sections/contract';
 import {
   audioContexts,
@@ -8,29 +9,23 @@ import {
   expect,
   expectExploring,
   holdChunks,
-  loadingScreen,
   scrollToSection,
   test,
   waitForScene,
 } from './fixtures';
 
-const video = (page: Page) => page.locator('.backdrop[data-zone="landing"] video');
+const layer = (page: Page) => page.locator('.backdrop[data-zone="landing"]');
+const images = (page: Page) => layer(page).locator('img.backdrop-image');
+const ground = (page: Page) => images(page).nth(1);
 
 const isMedia = (url: string) => /\.(mp4|webm|m4a|mp3|ogg|opus|wav)(\?.*)?$/.test(url);
 
-/** The video's playback position has moved on: it is really playing, not just unpaused. */
-async function expectPlaying(page: Page) {
-  const start = await video(page).evaluate((v: HTMLVideoElement) => v.currentTime);
-  await expect
-    .poll(() => video(page).evaluate((v: HTMLVideoElement, start) => !v.paused && v.currentTime !== start, start), { timeout: 15_000 })
-    .toBe(true);
-}
+/** Whether the landing's motion runs, as its layer says. */
+const motion = (page: Page) => layer(page).getAttribute('data-motion');
 
-const paused = (page: Page) => video(page).evaluate((v: HTMLVideoElement) => v.paused);
-
-/** The landing still has weight: whatever paused or silenced its backdrop, it wasn't the camera leaving the zone. */
-const expectLandingCurrent = (page: Page) =>
-  expect(page.locator('.backdrop[data-zone="landing"]')).toHaveCSS('visibility', 'visible');
+/** The landing still has weight: whatever stopped its motion or silenced its backdrop, it wasn't the camera leaving
+ *  the zone. */
+const expectLandingCurrent = (page: Page) => expect(layer(page)).toHaveCSS('visibility', 'visible');
 
 /** Opens a page the way Back and Forward do, without moving the scroll: the landing stays the current zone. */
 async function openPageInPlace(page: Page, path: string) {
@@ -41,20 +36,22 @@ async function openPageInPlace(page: Page, path: string) {
   await expect(page.locator('main.page')).toBeVisible();
 }
 
-test('the landing backdrop is a muted, looping, inline video that plays behind the canvas', async ({ page }) => {
+test('the landing backdrop is two still images behind the canvas, with mist and stars over them', async ({ page }) => {
   await page.goto('/');
   await waitForScene(page);
-  await expect(video(page)).toHaveJSProperty('muted', true);
-  await expect(video(page)).toHaveJSProperty('defaultMuted', true);
-  await expect(video(page)).toHaveJSProperty('loop', true);
-  await expect(video(page)).toHaveJSProperty('playsInline', true);
-  await expect(video(page)).toHaveAttribute('muted', '');
-  await expect(video(page)).toHaveAttribute('loop', '');
-  await expect(video(page)).toHaveAttribute('playsinline', '');
-  await expect(video(page)).toHaveAttribute('poster', /\.webp$/);
-  await expectPlaying(page);
-  // Faded in over its poster once it could play.
-  await expect(video(page)).toHaveCSS('opacity', '1');
+  await expect(images(page)).toHaveCount(2);
+  for (let i = 0; i < 2; i++) {
+    await expect(images(page).nth(i)).toHaveAttribute('src', /\.webp$/);
+    await expect(images(page).nth(i)).toHaveAttribute('alt', '');
+    await expect(images(page).nth(i)).toHaveJSProperty('complete', true);
+  }
+  await expect(page.locator('.backdrop video')).toHaveCount(0);
+  await expect(layer(page).locator('.backdrop-star')).toHaveCount(STAR_COUNT);
+  await expect(layer(page).locator('.backdrop-mist')).toHaveCount(1);
+  // The effects fade in once the loading screen has lifted.
+  await expect(layer(page)).toHaveAttribute('data-released', '');
+  await expect(layer(page).locator('.backdrop-mist')).toHaveCSS('opacity', String(MIST_OPACITY));
+  await expect.poll(() => motion(page)).toBe('running');
   // Behind the canvas, which leaves the sky to it.
   const behind = await page.evaluate(() => {
     const backdrops = document.querySelector('.backdrops')!;
@@ -64,89 +61,114 @@ test('the landing backdrop is a muted, looping, inline video that plays behind t
   expect(behind).toBe(true);
 });
 
-test('the video is not fetched while the loading screen is up, and the poster counts as a step', async ({ page }) => {
-  const videos: string[] = [];
-  page.on('request', (request) => {
-    if (request.url().endsWith('.mp4')) videos.push(request.url());
-  });
-  const held = await holdChunks(page, ['CitationPanel']);
-  await page.goto('/');
-  // Every step but the held chunk is done, the poster's included.
-  await expect(loadingScreen(page)).toHaveAttribute('data-drawn', '', { timeout: 20_000 });
-  await expect(loadingScreen(page)).toHaveAttribute('data-done', String(Number(await loadingScreen(page).getAttribute('data-total')) - 1), {
-    timeout: 20_000,
-  });
-  await expect(page.locator('.backdrop[data-zone="landing"] img')).toHaveJSProperty('complete', true);
-  expect(videos).toEqual([]);
-  await held.release();
-  await expect(loadingScreen(page)).toHaveCount(0);
-  await expect.poll(() => videos.length).toBeGreaterThan(0);
-  await expectPlaying(page);
-});
-
-test('the video pauses while a page is open and plays again once it closes', async ({ page }) => {
+test('the stars sit in the same places on every load, all in the upper sky', async ({ page }) => {
+  const places = () =>
+    layer(page)
+      .locator('.backdrop-star')
+      .evaluateAll((stars) => stars.map((star) => [(star as HTMLElement).style.left, (star as HTMLElement).style.top]));
   await page.goto('/');
   await waitForScene(page);
-  await expectPlaying(page);
+  const first = await places();
+  await page.reload();
+  await waitForScene(page);
+  expect(await places()).toEqual(first);
+  for (const [, top] of first) expect(parseFloat(top)).toBeLessThan(45);
+});
+
+test('the ground layer shifts against a mouse pointer, eased', async ({ page }) => {
+  await page.goto('/');
+  await waitForScene(page);
+  const transform = () => ground(page).evaluate((el) => (el as HTMLElement).style.transform);
+  await page.mouse.move(640, 360);
+  await page.waitForTimeout(2_000);
+  const middle = await transform();
+  await page.mouse.move(1279, 360);
+  // Eased: not there on the next frame, but on its way.
+  await expect.poll(transform).not.toBe(middle);
+  // Up to PARALLAX_MAX_X_PX at the right edge, against the pointer.
+  await expect.poll(async () => /^translate3d\(-(9\.\d+|10)px/.test(await transform()), { timeout: 10_000 }).toBe(true);
+});
+
+test.describe('on a touch screen', () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+
+  test('the pointer moves nothing', async ({ page }) => {
+    await page.goto('/');
+    await waitForScene(page);
+    const transform = () => ground(page).evaluate((el) => (el as HTMLElement).style.transform);
+    await page.waitForTimeout(1_000);
+    const before = await transform();
+    await page.mouse.move(380, 400);
+    await page.touchscreen.tap(380, 400);
+    await page.waitForTimeout(1_000);
+    expect(await transform()).toBe(before);
+  });
+});
+
+test('the motion stops while a page is open and starts again once it closes', async ({ page }) => {
+  await page.goto('/');
+  await waitForScene(page);
+  await expect.poll(() => motion(page)).toBe('running');
   await openPageInPlace(page, PAGE_PATHS.about);
-  await expect.poll(() => paused(page)).toBe(true);
+  await expect.poll(() => motion(page)).toBe('stopped');
+  await expect(layer(page).locator('.backdrop-mist')).toHaveCSS('animation-play-state', 'paused');
   await expectLandingCurrent(page);
   await page.goBack();
   await expectExploring(page);
-  await expectPlaying(page);
+  await expect.poll(() => motion(page)).toBe('running');
+  await expect(layer(page).locator('.backdrop-mist')).toHaveCSS('animation-play-state', 'running');
 });
 
-test('the video pauses while the tab is hidden', async ({ page }) => {
+test('the motion stops while the tab is hidden', async ({ page }) => {
   await page.goto('/');
   await waitForScene(page);
-  await expectPlaying(page);
+  await expect.poll(() => motion(page)).toBe('running');
   const setVisibility = (state: DocumentVisibilityState) =>
     page.evaluate((state) => {
       Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
       document.dispatchEvent(new Event('visibilitychange'));
     }, state);
   await setVisibility('hidden');
-  await expect.poll(() => paused(page)).toBe(true);
+  await expect.poll(() => motion(page)).toBe('stopped');
   await setVisibility('visible');
-  await expectPlaying(page);
+  await expect.poll(() => motion(page)).toBe('running');
 });
 
-test('the video fades out and pauses on the way to About, and the landing weight brings it back', async ({ page }) => {
+test('the motion stops on the way to About, where the landing has no weight, and the landing brings it back', async ({ page }) => {
   await page.goto('/');
   await waitForScene(page);
-  await expectPlaying(page);
+  await expect.poll(() => motion(page)).toBe('running');
   await scrollToSection(page, 'about');
-  await expect.poll(() => paused(page)).toBe(true);
-  await expect(page.locator('.backdrop[data-zone="landing"]')).toHaveCSS('visibility', 'hidden');
+  await expect.poll(() => motion(page)).toBe('stopped');
+  await expect(layer(page)).toHaveCSS('visibility', 'hidden');
+  // Nothing is written to the images while it is stopped.
+  const still = await images(page).evaluateAll((els) => els.map((el) => (el as HTMLElement).style.transform));
+  await page.waitForTimeout(1_000);
+  expect(await images(page).evaluateAll((els) => els.map((el) => (el as HTMLElement).style.transform))).toEqual(still);
   await page.evaluate(() => window.scrollTo(0, 0));
-  await expectPlaying(page);
+  await expect.poll(() => motion(page)).toBe('running');
 });
 
-test.describe('with Save-Data on', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => Object.defineProperty(navigator, 'connection', { value: { saveData: true } }));
-  });
-
-  test('only the poster shows, and no video is fetched', async ({ page }) => {
-    const media: string[] = [];
-    page.on('request', (request) => {
-      if (isMedia(request.url())) media.push(request.url());
-    });
-    await page.goto('/');
-    await waitForScene(page);
-    await expect(page.locator('.backdrop video')).toHaveCount(0);
-    await expect(page.locator('.backdrop[data-zone="landing"] img')).toHaveAttribute('src', /\.webp$/);
-    await expect(page.locator('.backdrop[data-zone="landing"]')).toHaveCSS('visibility', 'visible');
-    await page.mouse.click(640, 360);
-    await page.waitForLoadState('networkidle');
-    expect(media.filter((url) => url.endsWith('.mp4'))).toEqual([]);
-  });
+test('turning on reduced motion mid-visit leaves the layers still, at rest', async ({ page }) => {
+  await page.goto('/');
+  await waitForScene(page);
+  await page.mouse.move(1279, 700);
+  await expect.poll(() => motion(page)).toBe('running');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect.poll(() => motion(page)).toBe('stopped');
+  const transform = () => ground(page).evaluate((el) => (el as HTMLElement).style.transform);
+  const AT_REST = `translate3d(0px, 0px, 0px) scale(${LAYER_REST_SCALE})`;
+  await expect.poll(transform).toBe(AT_REST);
+  await expect(layer(page).locator('.backdrop-mist')).toHaveCSS('animation-name', 'none');
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(500);
+  expect(await transform()).toBe(AT_REST);
 });
 
 test.describe('the HTML site', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
-  test('has no backdrop video and fetches no media', async ({ page }) => {
+  test('has no backdrop and fetches no media', async ({ page }) => {
     const media: string[] = [];
     page.on('request', (request) => {
       if (isMedia(request.url()) || request.url().endsWith('.webp')) media.push(request.url());
@@ -155,15 +177,15 @@ test.describe('the HTML site', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Vardaan' })).toBeVisible();
     await page.mouse.click(10, 10);
     await page.waitForLoadState('networkidle');
-    await expect(page.locator('video')).toHaveCount(0);
+    await expect(page.locator('.backdrop')).toHaveCount(0);
     expect(media).toEqual([]);
   });
 });
 
-test('a direct page link keeps the video paused under its page', async ({ page }) => {
+test('a direct page link keeps the motion stopped under its page', async ({ page }) => {
   await page.goto(PAGE_PATHS.contact);
   await expect(page.locator('main.page')).toBeVisible({ timeout: 20_000 });
-  await expect.poll(() => paused(page)).toBe(true);
+  await expect.poll(() => motion(page)).toBe('stopped');
 });
 
 test.describe('the landing ambient bed', () => {
@@ -291,11 +313,11 @@ test.describe('the landing ambient bed', () => {
   });
 });
 
-test.describe("nothing of another zone over the landing's video", () => {
+test.describe("nothing of another zone over the landing's backdrop", () => {
   /** What the canvas says it draws of a section: 0 while hidden, else its opacity. */
   const drawn = async (page: Page, id: SectionId) => Number(await page.locator('.scene canvas').getAttribute(`data-section-${id}`));
 
-  /** Where the About box stood over the landing's sky, behind the name, before sections gave way to the video. */
+  /** Where the About box stood over the landing's sky, behind the name, before sections gave way to the backdrop. */
   const ABOUT_BOX_AT_LANDING = { x: 380, y: 150 };
 
   test('at the landing no section is drawn, and no marker can be reached or clicked', async ({ page }) => {

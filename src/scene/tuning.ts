@@ -87,16 +87,44 @@ export const SWEEP_SECONDS = 0.35;
 /** Peak gain of the sweep (0 to 1). */
 export const SWEEP_PEAK_GAIN = 0.5;
 
-/** Seconds for a zone's backdrop video to fade in over its poster once it is playing. It drops back to the poster at
- *  once whenever it stops. */
+/** Seconds for a zone backdrop's effects (mist, stars) to fade in once the loading screen has lifted. Its image layers
+ *  are already showing under the screen by then. */
 export const BACKDROP_FADE_IN_SECONDS = 1.2;
 
-/** Seconds a playing backdrop video may wait for data before its poster shows instead. Longer than the brief wait
- *  at each loop seam, so the video doesn't dip there. */
-export const BACKDROP_STALL_SECONDS = 0.5;
+/** Pointer parallax: how far a backdrop image layer at depth 1 shifts against the pointer at the edge of the view, in
+ *  px, sideways and vertically. A layer at depth d shifts d times as far. Off on touch screens. */
+export const PARALLAX_MAX_X_PX = 10;
+export const PARALLAX_MAX_Y_PX = 4;
 
-/** Seconds before a backdrop video's play() is tried again after the browser refused it. */
-export const BACKDROP_PLAY_RETRY_SECONDS = 1;
+/** How quickly the parallax eases toward the pointer, per second (as `CAMERA_DAMPING`). */
+export const PARALLAX_DAMPING = 3;
+
+/** The longest frame the parallax eases over, in seconds, so a long gap (a stalled frame) doesn't jump it. */
+export const PARALLAX_MAX_STEP_SECONDS = 0.1;
+
+/** Scale of a backdrop image layer at depth 1 at rest, so its edges never show as it shifts. A layer at depth d is
+ *  scaled by 1 + d times the excess, and never less than its shifts need. */
+export const LAYER_REST_SCALE = 1.04;
+
+/** Walk-away push: as a zone's weight falls from 1 to 0, a layer at depth 1 moves down by up to this many px and
+ *  scales up to `LAYER_PUSH_SCALE`; a layer at depth d by d times as much. */
+export const LAYER_PUSH_PX = 30;
+export const LAYER_PUSH_SCALE = 1.08;
+
+/** Mist: the band's height as a fraction of the viewport height, its opacity, and the seconds of one seamless loop
+ *  of its sideways drift. */
+export const MIST_HEIGHT = 0.12;
+export const MIST_OPACITY = 0.35;
+export const MIST_LOOP_SECONDS = 90;
+
+/** Stars: how many, from which seed, in the top fraction of the view, their size range in px, their opacity range
+ *  and the range of their own fading periods in seconds. */
+export const STAR_COUNT = 25;
+export const STAR_SEED = 2047;
+export const STAR_TOP_FRACTION = 0.45;
+export const STAR_SIZE_PX: [min: number, max: number] = [1, 2];
+export const STAR_OPACITY: [min: number, max: number] = [0.3, 1];
+export const STAR_PERIOD_SECONDS: [min: number, max: number] = [2.5, 6];
 
 /** Gain of a zone's ambient bed at full zone weight (0 to 1). Measured (EBU R128): the landing bed's file is
  *  -24.1 LUFS, so 0.25 plays it at about -36 LUFS, some 15 LU under the sweep's loudest moment (-21.3 LUFS). */

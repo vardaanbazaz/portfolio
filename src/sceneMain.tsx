@@ -1,8 +1,7 @@
 import { StrictMode } from 'react';
 import type { Root } from 'react-dom/client';
 import { App } from './App';
-import { listenVisibility, preloadPosters, releaseBackdrops } from './environment/backdropPlayer';
-import { BACKDROPS } from './environment/backdrops';
+import { BACKDROP_IMAGE_COUNT, listenInput, listenVisibility, preloadImages, releaseBackdrops } from './environment/backdropPlayer';
 import { preloadAll, SCENE_CHUNK_LOADS } from './preload';
 import { pageForPath, sectionForHash } from './routes';
 import { SECTION_T } from './scene/cameraPath';
@@ -19,14 +18,15 @@ export function mountScene(root: Root, onContextLost: () => void, pressedEarly =
 
   const bootPage = pageForPath(window.location.pathname);
   // The loading screen's first step; on a direct page link it waits for that page rather than the whole scene.
-  sceneCodeLoaded(SCENE_CHUNK_LOADS.length, BACKDROPS.length, bootPage !== null);
-  // Each backdrop's poster is a step. Its video loads only once the screen has lifted, and its sound only after a
-  // press, so neither holds the screen up.
-  preloadPosters(chunkArrived);
+  sceneCodeLoaded(SCENE_CHUNK_LOADS.length, BACKDROP_IMAGE_COUNT, bootPage !== null);
+  // Each backdrop image is a step, done once it has decoded. Its sound loads only after a press, so it never holds
+  // the screen up.
+  preloadImages(chunkArrived);
   onLifted(releaseBackdrops);
   // Every page and panel, fetched from now on in the background.
   preloadAll(chunkArrived);
   listenVisibility(document);
+  listenInput(window);
   const bootSection = bootPage ? PAGE_SECTION[bootPage] : sectionForHash(window.location.hash);
   appStore.dispatch({ type: 'boot', route: bootPage });
   // Sound is on unless the visitor muted before. The first pointer or key press anywhere creates the AudioContext,

@@ -6,7 +6,7 @@
   --muted: #9a9aa2;
   --line: #3a3a3f;
   --focus: #ffffff;
-  /* Landing text over its backdrop video: Sulphur Yellow. */
+  /* Landing text over its backdrop: Sulphur Yellow. */
   --landing-text: #cecaaf;
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-family: var(--font-ui);
@@ -87,10 +87,11 @@ h2:focus-visible,
   z-index: 0;
 }
 
-/* Zone backdrop videos, behind the transparent canvas. Each layer is faded by backdropPlayer; hidden until then. */
+/* Zone backdrops, behind the transparent canvas. Each layer is faded by backdropPlayer; hidden until then. */
 .backdrops,
 .backdrop,
-.backdrop-media,
+.backdrop-image,
+.backdrop-stars,
 .backdrop-shade {
   position: absolute;
   inset: 0;
@@ -98,30 +99,102 @@ h2:focus-visible,
 
 .backdrop {
   visibility: hidden;
+  overflow: hidden;
 }
 
-.backdrop-media {
+/* Every image of a zone is the same size and drawn the same way, so they line up. The cover crop keeps the horizon
+   row at its own height of the view; screens taller than wide take their own horizontal focus. Moved by transform
+   only, scaled about the horizon. */
+.backdrop-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: var(--focus-x) var(--horizon);
+  transform-origin: 50% var(--horizon);
+  will-change: transform;
+  user-select: none;
 }
 
-/* Shown over its poster only while it plays: fades in (its duration is set inline from tuning.ts), and gives way to
-   the poster at once when it pauses or stalls, so whatever a browser paints for a stopped video never shows. */
-.backdrop-video {
+@media (orientation: portrait) {
+  .backdrop-image {
+    object-position: var(--focus-x-portrait) var(--horizon);
+  }
+}
+
+/* Effects fade in once the loading screen has lifted (data-released), and their animations pause whenever the
+   backdrop's motion stops (data-motion). */
+.backdrop-stars,
+.backdrop-mist {
   opacity: 0;
+  transition: opacity var(--effect-fade) ease-out;
 }
 
-.backdrop-video-ready {
+.backdrop[data-released] .backdrop-stars {
   opacity: 1;
-  transition: opacity var(--backdrop-fade) ease-out;
 }
 
-/* Darkens the upper sky under the landing text, just enough for AA contrast across the whole loop (measured at
-   1440x900, 1280x720 and 390x844). In pixels, as the text block is, but never past two thirds of the height, so it
-   is gone before the horizon and the bottom corners on short screens too. */
+.backdrop[data-released] .backdrop-mist {
+  opacity: var(--mist-opacity);
+}
+
+.backdrop-star {
+  position: absolute;
+  border-radius: 50%;
+  background: #e2eaff;
+  opacity: var(--star-max);
+  animation: backdrop-twinkle ease-in-out infinite alternate;
+}
+
+@keyframes backdrop-twinkle {
+  from {
+    opacity: var(--star-min);
+  }
+
+  to {
+    opacity: var(--star-max);
+  }
+}
+
+/* A soft band centred on the horizon, two tiles wide, drifting left by exactly one tile per loop. The tile is
+   periodic across its width, so the loop shows no seam. */
+.backdrop-mist {
+  position: absolute;
+  left: 0;
+  top: calc(var(--horizon) - var(--mist-height) / 2);
+  width: 200%;
+  height: var(--mist-height);
+  background: var(--mist-image) repeat-x 0 0 / 50% 100%;
+  animation: backdrop-drift var(--mist-loop) linear infinite;
+}
+
+@keyframes backdrop-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.backdrop[data-motion='stopped'] .backdrop-star,
+.backdrop[data-motion='stopped'] .backdrop-mist {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop-star,
+  .backdrop-mist {
+    animation: none;
+  }
+}
+
+/* Darkens the upper sky under the landing text, just enough for AA contrast behind every small line (measured at
+   1920x1080 and 1366x768 against the lightest image pixel behind each line, with the code-drawn stars hidden). In pixels, as the text block
+   is, but never past two thirds of the height, so it is gone before the horizon and the bottom corners on short
+   screens too. */
 .backdrop-shade {
-  background: linear-gradient(to bottom, rgb(0 0 0 / 0.2), rgb(0 0 0 / 0.45) min(340px, 47vh), rgb(0 0 0 / 0) min(470px, 65vh));
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.2), rgb(0 0 0 / 0.7) min(340px, 47vh), rgb(0 0 0 / 0) min(470px, 65vh));
 }
 
 /* Sets the scrollable height that drives the camera. svh keeps it steady while mobile address bars show and hide. */

@@ -51,7 +51,7 @@ const DOME_VERTEX = /* glsl */ `
   }
 `;
 
-// Faded by `opacity` over a zone's backdrop video, which shows through the transparent canvas behind it.
+// Faded by `opacity` over a zone's backdrop, which shows through the transparent canvas behind it.
 const DOME_FRAGMENT = /* glsl */ `
   uniform float opacity;
   varying vec3 vColor;
@@ -94,7 +94,7 @@ function GreyboxWorld({ pathT, quality }: EnvironmentProps) {
 
   useFrame(() => {
     blendZones(pathT.current, quality, state);
-    // Where a zone has a backdrop video, the dome and grid give way to it; at its own point they aren't drawn.
+    // Where a zone has a backdrop, the dome and grid give way to it; at its own point they aren't drawn.
     const opacity = worldOpacity(pathT.current);
     const drawn = material.current?.uniforms;
     if (drawn) {
@@ -124,7 +124,7 @@ function GreyboxWorld({ pathT, quality }: EnvironmentProps) {
 
   return (
     <>
-      {/* No scene background: the canvas clears to transparent, so a backdrop video can show behind it. */}
+      {/* No scene background: the canvas clears to transparent, so a backdrop can show behind it. */}
       <fog ref={fog} attach="fog" args={['#000000', 1, 2]} />
       <mesh ref={dome} renderOrder={-1} frustumCulled={false}>
         {/* More rings than a sky alone needs: the floor's fog changes quickly near eye level. */}

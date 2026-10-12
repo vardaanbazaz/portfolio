@@ -6,8 +6,8 @@ import { LOADING_SCREEN_FADE_SECONDS, LOADING_SCREEN_LIMIT_SECONDS } from '../sc
  * lifts it; it imports nothing 3D, so the HTML site can use it too.
  *
  * Its progress is real: on the scene site, one step for the scene's code, one for the scene's first frame, one per
- * backdrop poster, and one per page and panel chunk fetched. Backdrop videos and sound never count. It lifts once the
- * scene has drawn and every poster and chunk has arrived, or at the limit in
+ * backdrop image decoded, and one per page and panel chunk fetched. Sound never counts. It lifts once the scene has
+ * drawn and every image has decoded and every chunk has arrived, or at the limit in
  * `tuning.ts` after the first frame. On a direct page link it lifts as soon as that page has rendered instead.
  */
 
@@ -61,11 +61,11 @@ function liftIfReady() {
 }
 
 /** The scene's code has loaded. `chunks` is how many page and panel chunks the background fetch will bring, and
- *  `posters` how many backdrop posters load; `page` is true on a direct page link, where the screen waits for that
+ *  `images` how many backdrop images decode; `page` is true on a direct page link, where the screen waits for that
  *  page instead. */
-export function sceneCodeLoaded(chunks: number, posters: number, page: boolean) {
-  total = chunks + posters + 2;
-  chunksLeft = chunks + posters;
+export function sceneCodeLoaded(chunks: number, images: number, page: boolean) {
+  total = chunks + images + 2;
+  chunksLeft = chunks + images;
   forPage = page;
   step();
 }
@@ -81,7 +81,7 @@ export function firstFrameDrawn() {
   liftIfReady();
 }
 
-/** One page or panel chunk, or one backdrop poster, has arrived. One that failed for good doesn't count; the limit
+/** One page or panel chunk has arrived, or one backdrop image has decoded. One that failed for good doesn't count; the limit
  *  covers it. */
 export function chunkArrived() {
   chunksLeft--;
