@@ -113,7 +113,8 @@
       justify-content: center;
       gap: var(--gate-icon-gap);
       padding: var(--gate-enter-padding);
-      border-color: rgb(206 202 175 / 0.6);
+      /* Scrolling under the gate raises the opacity (--gate-energy-border); hover still wins. */
+      border-color: rgb(206 202 175 / var(--gate-energy-border, 0.6));
       font-size: var(--gate-enter-font);
       font-weight: 600;
     }

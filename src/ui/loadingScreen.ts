@@ -1,5 +1,11 @@
 import {
   GATE_BORDER_PX,
+  GATE_ENERGY_BORDER_OPACITY,
+  GATE_ENERGY_HALF_LIFE_SECONDS,
+  GATE_ENERGY_MAX_SCALE,
+  GATE_ENERGY_PER_KEY,
+  GATE_ENERGY_PER_PX,
+  GATE_ENERGY_REST,
   GATE_ENTER_FONT_PX,
   GATE_ENTER_PADDING_PX,
   GATE_ENTER_SUBLINE_FONT_PX,
@@ -8,11 +14,8 @@ import {
   GATE_FOCUS_RING_OFFSET_PX,
   GATE_FOCUS_RING_PX,
   GATE_GAP_PX,
-  GATE_GESTURE_GAP_SECONDS,
   GATE_ICON_GAP_PX,
   GATE_ICON_PX,
-  GATE_PULSE_SCALE,
-  GATE_PULSE_SECONDS,
   GATE_QUIET_FONT_PX,
   GATE_QUIET_PADDING_X_PX,
   GATE_RADIUS_PX,
@@ -20,6 +23,7 @@ import {
   GATE_TARGET_MIN_PX,
   GATE_TOUCH_SLOP_PX,
   GATE_UNDERLINE_OFFSET_PX,
+  GATE_WHEEL_LINE_PX,
   LOADING_SCREEN_FADE_SECONDS,
   LOADING_SCREEN_LIMIT_SECONDS,
 } from '../scene/tuning';
@@ -101,8 +105,19 @@ function lift(fade: boolean) {
 
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
-/** Keys that would scroll the page. Space and Enter are left to the focused button. */
-const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End']);
+/** Keys that would scroll the page, and how much energy each press gives the Enter button. Space too, but only when
+ *  neither gate button has focus: on one, it presses that button. Enter is always left to the focused button. */
+const SCROLL_KEYS = new Map<string, number>([
+  ['ArrowUp', GATE_ENERGY_PER_KEY.arrow],
+  ['ArrowDown', GATE_ENERGY_PER_KEY.arrow],
+  ['ArrowLeft', GATE_ENERGY_PER_KEY.arrow],
+  ['ArrowRight', GATE_ENERGY_PER_KEY.arrow],
+  ['PageUp', GATE_ENERGY_PER_KEY.page],
+  ['PageDown', GATE_ENERGY_PER_KEY.page],
+  ['Home', GATE_ENERGY_PER_KEY.page],
+  ['End', GATE_ENERGY_PER_KEY.page],
+  [' ', GATE_ENERGY_PER_KEY.page],
+]);
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** A small speaker with one sound wave, drawn in the text colour. */
@@ -133,33 +148,62 @@ function gateButton(className: string, onPress: () => void): HTMLButtonElement {
   return button;
 }
 
-/** Tells scroll gestures apart. Takes each wheel, touch-drag or scroll-key event's time, in ms, and whether it only
- *  continues one already counted (a held key's repeats, the later moves of a touch already counted), and returns
- *  true when it starts a new gesture: the first after a quiet gap of `gapSeconds`. */
-export function scrollGestures(gapSeconds: number) {
-  let last = -Infinity;
-  return (time: number, continuing: boolean) => {
-    const starts = !continuing && time - last >= gapSeconds * 1000;
-    last = time;
-    return starts;
-  };
+/** A wheel event's vertical scroll in px, whether it counts in px, lines or pages. */
+export function wheelPx(deltaY: number, deltaMode: number, pageHeight: number) {
+  const unit = deltaMode === 1 ? GATE_WHEEL_LINE_PX : deltaMode === 2 ? pageHeight : 1;
+  return Math.abs(deltaY) * unit;
 }
 
-/** One short pulse of the Enter button. Counted on the button (`data-pulses`) so a test can see it. One still running
- *  is replaced by the new one, which starts from wherever the old one had got to, so nothing stacks or jumps. */
-let pulseAnimation: Animation | undefined;
-function pulse(button: HTMLElement) {
-  button.dataset.pulses = String(Number(button.dataset.pulses ?? 0) + 1);
-  const property = reducedMotion() ? 'borderColor' : 'transform';
-  const keyframes: Keyframe[] =
-    property === 'borderColor'
-      ? [{ borderColor: 'rgb(206 202 175 / 0.6)' }, { borderColor: 'rgb(206 202 175 / 1)' }, { borderColor: 'rgb(206 202 175 / 0.6)' }]
-      : [{ transform: 'scale(1)' }, { transform: `scale(${GATE_PULSE_SCALE})` }, { transform: 'scale(1)' }];
-  if (pulseAnimation?.playState === 'running') {
-    keyframes[0] = { [property]: getComputedStyle(button)[property] };
-    pulseAnimation.cancel();
-  }
-  pulseAnimation = button.animate?.(keyframes, { id: 'gate-pulse', duration: GATE_PULSE_SECONDS * 1000, easing: 'ease-in-out' });
+/** How the Enter button draws at an energy: its scale (none with reduced motion) and its border opacity, or null at
+ *  rest, where it draws as `index.html` has it. */
+export function energyStyle(energy: number, reduced: boolean): { transform?: string; borderOpacity: number } | null {
+  if (energy <= 0) return null;
+  const [rest, full] = GATE_ENERGY_BORDER_OPACITY;
+  const borderOpacity = rest + (full - rest) * energy;
+  return reduced ? { borderOpacity } : { transform: `scale(${1 + GATE_ENERGY_MAX_SCALE * energy})`, borderOpacity };
+}
+
+/** The Enter button's energy under the gate. `add` raises it, up to 1; each frame it decays by its half-life, and
+ *  `draw` gets it after every change. Frames are requested only while it is above rest, so none run once it settles
+ *  or after `stop`. */
+export function gateEnergy(
+  draw: (energy: number) => void,
+  requestFrame: (callback: (time: number) => void) => number,
+  cancelFrame: (handle: number) => void,
+  now: () => number,
+) {
+  let energy = 0;
+  // When the energy last decayed, in ms on the frame clock.
+  let last = 0;
+  let frame: number | undefined;
+  const tick = (time: number) => {
+    frame = undefined;
+    // A frame's time is when the frame started, which can come before the `now()` that woke the loop.
+    energy *= 0.5 ** (Math.max(0, time - last) / 1000 / GATE_ENERGY_HALF_LIFE_SECONDS);
+    last = Math.max(last, time);
+    if (energy <= GATE_ENERGY_REST) energy = 0;
+    draw(energy);
+    if (energy > 0) frame = requestFrame(tick);
+  };
+  return {
+    add(amount: number) {
+      if (!(amount > 0)) return;
+      if (frame === undefined) last = now();
+      energy = Math.min(1, energy + amount);
+      if (energy <= GATE_ENERGY_REST) {
+        energy = 0;
+        return;
+      }
+      draw(energy);
+      frame ??= requestFrame(tick);
+    },
+    stop() {
+      if (frame !== undefined) cancelFrame(frame);
+      frame = undefined;
+      energy = 0;
+      draw(0);
+    },
+  };
 }
 
 /** Replaces the bar with the entry gate, in the same place, and waits for the visitor's press. Shown once. */
@@ -226,20 +270,32 @@ function showGate(entry: EntryGate) {
   if (!reducedMotion()) gateEl.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: GATE_FADE_IN_SECONDS * 1000, easing: 'ease-out' });
   (entry.savedMuted ? quietButton : enterButton).focus({ preventScroll: true });
 
-  // Nothing scrolls under the gate: each scroll gesture pulses Enter once instead. Tab moves between the two buttons
-  // only. Gaps are measured between the events' own times, so a busy frame between two of them doesn't split one.
-  const startsGesture = scrollGestures(GATE_GESTURE_GAP_SECONDS);
-  const scrollAttempt = (event: Event, continuing: boolean) => {
-    if (startsGesture(event.timeStamp, continuing)) pulse(enterButton);
-  };
-  const onWheel = (event: Event) => {
+  // Nothing scrolls under the gate: scrolling gives Enter energy instead, in proportion to how far it would have
+  // scrolled. The energy is on the button (`data-energy`) so a test can see it. Tab moves between the two buttons only.
+  const energy = gateEnergy(
+    (value) => {
+      enterButton.dataset.energy = String(value);
+      const style = energyStyle(value, reducedMotion());
+      if (style?.transform) enterButton.style.transform = style.transform;
+      else enterButton.style.removeProperty('transform');
+      // A variable, not the colour itself, so the hover rule's full border still wins.
+      if (style) enterButton.style.setProperty('--gate-energy-border', String(style.borderOpacity));
+      else enterButton.style.removeProperty('--gate-energy-border');
+    },
+    (callback) => requestAnimationFrame(callback),
+    (handle) => cancelAnimationFrame(handle),
+    () => performance.now(),
+  );
+  const onWheel = (event: WheelEvent) => {
     if (event.cancelable) event.preventDefault();
-    scrollAttempt(event, false);
+    energy.add(wheelPx(event.deltaY, event.deltaMode, window.innerHeight) * GATE_ENERGY_PER_PX);
   };
   const onKey = (event: KeyboardEvent) => {
-    if (SCROLL_KEYS.has(event.key)) {
+    const amount = SCROLL_KEYS.get(event.key);
+    const onButton = document.activeElement === enterButton || document.activeElement === quietButton;
+    if (amount !== undefined && !(event.key === ' ' && onButton)) {
       event.preventDefault();
-      scrollAttempt(event, event.repeat);
+      energy.add(amount);
       return;
     }
     if (event.key !== 'Tab') return;
@@ -249,36 +305,36 @@ function showGate(entry: EntryGate) {
     next.focus();
   };
   // A touch drag: touchmove where the browser sends it, and the touch's own pointer moves, since Chromium sends no
-  // touchmove for a drag when nothing on the page can scroll. Every move counts once the touch is past the slop, and
-  // after its first counted move the rest continue its gesture.
-  let touchFrom: { x: number; y: number } | null = null;
+  // touchmove for a drag when nothing on the page can scroll. Once the touch is past the slop, each move adds the
+  // distance from the last point counted; where both events come for one move, the second finds it already counted.
+  let touchLast: { x: number; y: number } | null = null;
   let touchPastSlop = false;
-  let touchCounted = false;
-  const touchAttempt = (event: Event) => {
-    scrollAttempt(event, touchCounted);
-    touchCounted = true;
+  const touchAttempt = (x: number, y: number) => {
+    if (!touchLast) return;
+    const distance = Math.hypot(x - touchLast.x, y - touchLast.y);
+    if (!touchPastSlop && distance < GATE_TOUCH_SLOP_PX) return;
+    touchPastSlop = true;
+    touchLast = { x, y };
+    energy.add(distance * GATE_ENERGY_PER_PX);
   };
-  const onTouchMove = (event: Event) => {
+  const onTouchMove = (event: TouchEvent) => {
     if (event.cancelable) event.preventDefault();
-    touchAttempt(event);
+    const touch = event.touches[0];
+    if (touch) touchAttempt(touch.clientX, touch.clientY);
   };
   const onPointerDown = (event: PointerEvent) => {
-    touchFrom = event.pointerType === 'touch' ? { x: event.clientX, y: event.clientY } : null;
+    touchLast = event.pointerType === 'touch' && event.isPrimary ? { x: event.clientX, y: event.clientY } : null;
     touchPastSlop = false;
-    touchCounted = false;
   };
   const onPointerMove = (event: PointerEvent) => {
-    if (event.pointerType !== 'touch' || !touchFrom) return;
-    if (!touchPastSlop && Math.hypot(event.clientX - touchFrom.x, event.clientY - touchFrom.y) < GATE_TOUCH_SLOP_PX) return;
-    touchPastSlop = true;
-    touchAttempt(event);
+    if (event.pointerType === 'touch' && event.isPrimary) touchAttempt(event.clientX, event.clientY);
   };
   const onPointerEnd = () => {
-    touchFrom = null;
+    touchLast = null;
   };
   const listeners: [string, EventListener][] = [
-    ['wheel', onWheel],
-    ['touchmove', onTouchMove],
+    ['wheel', onWheel as EventListener],
+    ['touchmove', onTouchMove as EventListener],
     ['keydown', onKey as EventListener],
     ['pointerdown', onPointerDown as EventListener],
     ['pointermove', onPointerMove as EventListener],
@@ -289,6 +345,7 @@ function showGate(entry: EntryGate) {
   for (const [type, listener] of listeners) window.addEventListener(type, listener, active);
   gateCleanup = () => {
     for (const [type, listener] of listeners) window.removeEventListener(type, listener, active);
+    energy.stop();
   };
 }
 

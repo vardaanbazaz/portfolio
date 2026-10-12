@@ -1,6 +1,12 @@
 import type { Page } from '@playwright/test';
 import { PAGE_PATHS } from '../../src/routes';
-import { GATE_FADE_IN_SECONDS, GATE_GESTURE_GAP_SECONDS, GATE_TARGET_MIN_PX, LOADING_SCREEN_LIMIT_SECONDS } from '../../src/scene/tuning';
+import {
+  GATE_ENERGY_MAX_SCALE,
+  GATE_ENTER_WIDTH_PX,
+  GATE_FADE_IN_SECONDS,
+  GATE_TARGET_MIN_PX,
+  LOADING_SCREEN_LIMIT_SECONDS,
+} from '../../src/scene/tuning';
 import {
   audioContexts,
   audioContextStates,
@@ -33,26 +39,29 @@ const TOTAL_STEPS = 2 + IMAGES.length + PAGE_CHUNKS.length + PANEL_CHUNKS.length
  *  other step done. */
 const LAST_CHUNK = 'CitationPanel';
 
-/** How many times the Enter button has pulsed. */
-const pulses = (page: Page) => enterButton(page).evaluate((el) => Number(el.dataset.pulses ?? 0));
+/** Below this the Enter button is visibly at rest: its width differs from rest by under a quarter px. */
+const VISUAL_REST = 0.25 / (GATE_ENTER_WIDTH_PX * GATE_ENERGY_MAX_SCALE);
 
-/** Records, for each pulse just after it starts, how many pulse animations the Enter button has and where the new one
- *  starts from: `scale(1)` at rest, or the scale a running pulse had reached when this one replaced it. */
-const RECORD_PULSES = () => {
+/** Records, in page time, every energy the Enter button draws, with its inline transform and border opacity. */
+const RECORD_ENERGY = () => {
   const button = document.querySelector<HTMLElement>('.loading-gate-enter')!;
-  const w = window as unknown as { pulseLog: { running: number; from: string }[] };
-  w.pulseLog = [];
-  new MutationObserver((records) => {
-    const running = button.getAnimations().filter((a) => a.id === 'gate-pulse');
-    const from = String((running[0]?.effect as KeyframeEffect | undefined)?.getKeyframes()[0]?.transform);
-    for (const _ of records) w.pulseLog.push({ running: running.length, from });
-  }).observe(button, { attributeFilter: ['data-pulses'] });
+  const w = window as unknown as { energyLog: { energy: number; at: number; transform: string; border: string }[] };
+  w.energyLog = [];
+  new MutationObserver(() => {
+    w.energyLog.push({
+      energy: Number(button.dataset.energy),
+      at: performance.now(),
+      transform: button.style.transform,
+      border: button.style.getPropertyValue('--gate-energy-border'),
+    });
+  }).observe(button, { attributeFilter: ['data-energy'] });
 };
-const pulseLog = (page: Page) =>
-  page.evaluate(() => (window as unknown as { pulseLog: { running: number; from: string }[] }).pulseLog);
-
-/** Waits out a scroll gesture: longer than the quiet gap that ends one. */
-const quietGap = (page: Page) => page.waitForTimeout(GATE_GESTURE_GAP_SECONDS * 1000 + 250);
+type EnergyLog = { energy: number; at: number; transform: string; border: string }[];
+const energyLog = (page: Page) => page.evaluate(() => (window as unknown as { energyLog: EnergyLog }).energyLog);
+const clearEnergyLog = (page: Page) => page.evaluate(() => void ((window as unknown as { energyLog: EnergyLog }).energyLog = []));
+const peak = (log: EnergyLog) => Math.max(0, ...log.map((e) => e.energy));
+/** The energy has settled back to 0, so the loop has stopped. */
+const atRest = (page: Page) => expect(enterButton(page)).toHaveAttribute('data-energy', '0');
 
 /** Records, in page time, when the scene's first frame reached the loading screen and when the entry gate took the
  *  bar's place (where the screen used to lift by itself). */
@@ -382,32 +391,36 @@ test.describe('the entry gate', () => {
     await expect.poll(() => audioContextStates(page)).toEqual(['running']);
   });
 
-  test('a wheel under the gate moves nothing and pulses Enter once per gesture', async ({ page }) => {
+  test('a wheel under the gate moves nothing, swells Enter in proportion and lets it ease back', async ({ page }) => {
     await page.goto('/');
     await expect(gate(page)).toBeVisible({ timeout: 20_000 });
     await page.mouse.move(640, 200);
+    await page.evaluate(RECORD_ENERGY);
 
-    // Five separate gestures, 0.5 s apart: five pulses. Each after the first starts while the last pulse still
-    // runs, and replaces it from where it had got to.
-    await page.evaluate(RECORD_PULSES);
-    for (let i = 0; i < 5; i++) {
-      const at = Date.now();
-      await page.mouse.wheel(0, 400);
-      await page.waitForTimeout(500 - (Date.now() - at));
-    }
-    expect(await pulses(page)).toBe(5);
+    // One notch: a swell, back at rest to the eye within about 1 s, and then fully at rest.
+    await page.mouse.wheel(0, 100);
+    await atRest(page);
+    let log = await energyLog(page);
+    const small = peak(log);
+    expect(small).toBeGreaterThan(0);
+    const top = log.find((e) => e.energy === small)!;
+    expect(top.transform).toBe(`scale(${1 + GATE_ENERGY_MAX_SCALE * small})`);
+    const settled = log.find((e) => e.at > top.at && e.energy < VISUAL_REST)!;
+    expect(settled.at - top.at).toBeLessThanOrEqual(1000);
+    expect(log.at(-1)!.transform).toBe('');
 
-    // One continuous gesture of 40 events: one pulse.
-    await quietGap(page);
-    for (let i = 0; i < 40; i++) {
-      await page.mouse.wheel(0, 50);
-      await page.waitForTimeout(16);
-    }
-    await quietGap(page);
-    expect(await pulses(page)).toBe(6);
-    const log = await pulseLog(page);
-    expect(log.map((p) => p.running)).toEqual([1, 1, 1, 1, 1, 1]);
-    for (const p of log.slice(1, 5)) expect(p.from).not.toBe('scale(1)');
+    // A larger delta gives more.
+    await clearEnergyLog(page);
+    await page.mouse.wheel(0, 400);
+    await atRest(page);
+    expect(peak(await energyLog(page))).toBeGreaterThan(small);
+
+    // 100 rapid events fill it, and never past 1.
+    await clearEnergyLog(page);
+    for (let i = 0; i < 100; i++) await page.mouse.wheel(0, 400);
+    log = await energyLog(page);
+    expect(peak(log)).toBe(1);
+    expect(log.every((e) => e.energy <= 1)).toBe(true);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
 
     // The same wheel scrolls once the gate is passed, so the ones above really would have.
@@ -416,67 +429,81 @@ test.describe('the entry gate', () => {
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   });
 
-  test('a scroll key under the gate moves nothing and pulses Enter once per press, and once for a held key', async ({ page }) => {
+  test('a scroll key under the gate moves nothing and swells Enter, a page key more than an arrow', async ({ page }) => {
     await page.goto('/');
     await expect(gate(page)).toBeVisible({ timeout: 20_000 });
+    await page.evaluate(RECORD_ENERGY);
 
-    await page.evaluate(RECORD_PULSES);
-    for (let i = 0; i < 5; i++) {
-      const at = Date.now();
-      await page.keyboard.press(i % 2 ? 'ArrowDown' : 'PageDown');
-      await page.waitForTimeout(500 - (Date.now() - at));
-    }
-    expect(await pulses(page)).toBe(5);
+    await page.keyboard.press('ArrowDown');
+    await atRest(page);
+    const arrow = peak(await energyLog(page));
+    expect(arrow).toBeGreaterThan(0);
 
-    // Held: the system's repeat starts after a delay longer than the gap, then repeats about every 33 ms. A second
-    // down on a key already down is a repeat.
-    await quietGap(page);
-    await page.keyboard.down('ArrowDown');
-    await page.waitForTimeout(500);
-    for (let i = 0; i < 40; i++) {
-      await page.keyboard.down('ArrowDown');
-      await page.waitForTimeout(33);
-    }
-    await page.keyboard.up('ArrowDown');
-    await quietGap(page);
-    expect(await pulses(page)).toBe(6);
-    const log = await pulseLog(page);
-    expect(log.map((p) => p.running)).toEqual([1, 1, 1, 1, 1, 1]);
-    for (const p of log.slice(1, 5)) expect(p.from).not.toBe('scale(1)');
+    await clearEnergyLog(page);
+    await page.keyboard.press('PageDown');
+    await atRest(page);
+    expect(peak(await energyLog(page))).toBeGreaterThan(arrow);
+
+    // Space away from the buttons is a scroll key too; on a button it would press it.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await clearEnergyLog(page);
+    await page.keyboard.press('Space');
+    expect(peak(await energyLog(page))).toBeGreaterThan(0);
+    await expect(gate(page)).toBeVisible();
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  });
+
+  test('with reduced motion, scrolling under the gate brightens Enter\'s border but leaves its scale at 1', async ({ page }) => {
+    await page.goto('/');
+    await expect(gate(page)).toBeVisible({ timeout: 20_000 });
+    // Only now: with reduced motion from the start, the site shows its fallback and no gate.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.evaluate(RECORD_ENERGY);
+    await page.mouse.move(640, 200);
+    await page.mouse.wheel(0, 400);
+    await atRest(page);
+    const log = await energyLog(page);
+    expect(peak(log)).toBeGreaterThan(0);
+    expect(log.every((e) => e.transform === '')).toBe(true);
+    expect(Math.max(...log.map((e) => Number(e.border || 0)))).toBeGreaterThan(0.6);
+    await expect(enterButton(page)).toHaveCSS('transform', 'none');
+  });
+
+  test('scrolling under the gate never dims Enter\'s full border while it is hovered', async ({ page }) => {
+    await page.goto('/');
+    await expect(gate(page)).toBeVisible({ timeout: 20_000 });
+    await enterButton(page).hover();
+    await expect(enterButton(page)).toHaveCSS('border-color', 'rgb(206, 202, 175)');
+    await page.mouse.wheel(0, 100);
+    await expect(enterButton(page)).toHaveAttribute('data-energy', /[1-9]/);
+    await expect(enterButton(page)).toHaveCSS('border-color', 'rgb(206, 202, 175)');
   });
 
   test.describe('on a touch screen', () => {
     test.use({ hasTouch: true });
 
-    test('a touch drag under the gate moves nothing and pulses Enter once per drag', async ({ page }) => {
+    test('a touch drag under the gate moves nothing and swells Enter', async ({ page }) => {
       await page.goto('/');
       await expect(gate(page)).toBeVisible({ timeout: 20_000 });
       const cdp = await page.context().newCDPSession(page);
       // A touch drag upward, which scrolls the page down, from low on the screen away from the buttons. Raw touch
       // input: Chromium's synthesized scroll gesture scrolls nothing in headless runs, even on the HTML site.
-      const drag = async (moves: number, step: number, pause = 0) => {
+      const drag = async (moves: number, step: number) => {
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 640, y: 650 }] });
         for (let i = 1; i <= moves; i++) {
           await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 640, y: 650 - i * step }] });
-          if (pause) await page.waitForTimeout(pause);
         }
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
       };
 
-      await page.evaluate(RECORD_PULSES);
-      for (let i = 0; i < 5; i++) {
-        await drag(20, 20);
-        await page.waitForTimeout(500);
-      }
-      expect(await pulses(page)).toBe(5);
-
-      // One continuous drag of 40 moves: one pulse.
-      await quietGap(page);
-      await drag(40, 10, 16);
-      await quietGap(page);
-      expect(await pulses(page)).toBe(6);
-      expect((await pulseLog(page)).map((p) => p.running)).toEqual([1, 1, 1, 1, 1, 1]);
+      await page.evaluate(RECORD_ENERGY);
+      await drag(5, 20);
+      const short = peak(await energyLog(page));
+      expect(short).toBeGreaterThan(0);
+      await atRest(page);
+      await clearEnergyLog(page);
+      await drag(20, 20);
+      expect(peak(await energyLog(page))).toBeGreaterThan(short);
       expect(await page.evaluate(() => window.scrollY)).toBe(0);
 
       await passGate(page);

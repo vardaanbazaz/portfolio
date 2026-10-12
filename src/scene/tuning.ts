@@ -45,14 +45,30 @@ export const GATE_FOCUS_RING_OFFSET_PX = 2;
 /** The gate never comes closer than this to either side of the screen, in px. */
 export const GATE_SIDE_GUTTER_PX = 16;
 
-/** A scroll gesture while the gate shows pulses the Enter button once, at its start, this long, scaling it up to
- *  `GATE_PULSE_SCALE` and back (with reduced motion, only its border brightens). */
-export const GATE_PULSE_SECONDS = 0.6;
-export const GATE_PULSE_SCALE = 1.04;
+/** Scrolling under the gate gives the Enter button energy, from 0 at rest to 1 at most, which swells it to
+ *  1 + `GATE_ENERGY_MAX_SCALE` and brightens its border (with reduced motion, only its border). Wheel and touch-drag
+ *  scrolling add this much per px: one wheel notch (about 100 px) gives a just-visible swell, and a hard touchpad
+ *  swipe or a long drag (500 px or more) fills it. */
+export const GATE_ENERGY_PER_PX = 0.002;
 
-/** A scroll gesture under the gate is a run of wheel, touch-drag and scroll-key events with no quiet gap this long
- *  between them, in seconds. A held key and a finger that stays down are one gesture however long they last. */
-export const GATE_GESTURE_GAP_SECONDS = 0.25;
+/** Energy per scroll-key press or repeat: an arrow as much as one wheel notch; PageUp, PageDown, Home, End and Space
+ *  more. */
+export const GATE_ENERGY_PER_KEY = { arrow: 0.2, page: 0.5 } as const;
+
+/** Energy halves every this many seconds, so the button eases back as soon as scrolling stops. */
+export const GATE_ENERGY_HALF_LIFE_SECONDS = 0.25;
+
+/** At or below this the energy is at rest: it drops to 0 and no frames run. */
+export const GATE_ENERGY_REST = 0.001;
+
+/** The Enter button's scale at full energy is 1 plus this. */
+export const GATE_ENERGY_MAX_SCALE = 0.06;
+
+/** The Enter button's border opacity at rest (as `index.html` draws it) and at full energy. */
+export const GATE_ENERGY_BORDER_OPACITY: [rest: number, full: number] = [0.6, 1];
+
+/** px per line for a wheel that scrolls by lines (Firefox's mouse wheel, 3 lines a notch). */
+export const GATE_WHEEL_LINE_PX = 40;
 
 /** A touch that moves this many px under the gate counts as a scroll attempt; less is a tap. */
 export const GATE_TOUCH_SLOP_PX = 10;
