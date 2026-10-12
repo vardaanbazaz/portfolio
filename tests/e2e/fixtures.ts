@@ -21,20 +21,37 @@ export const test = base.extend<{ outsideRequests: string[] }>({
 
 export { expect };
 
-/** Counts AudioContexts the page creates, from before any of its scripts run. */
+/** Counts AudioContexts the page creates, from before any of its scripts run, and keeps each one to read its state. */
 export const COUNT_AUDIO_CONTEXTS = () => {
-  const w = window as unknown as { audioContexts: number; AudioContext: typeof AudioContext };
+  const w = window as unknown as { audioContexts: number; audioContextList: AudioContext[]; AudioContext: typeof AudioContext };
   w.audioContexts = 0;
+  w.audioContextList = [];
   const Original = w.AudioContext;
   w.AudioContext = class extends Original {
     constructor(options?: AudioContextOptions) {
       super(options);
       w.audioContexts++;
+      w.audioContextList.push(this);
     }
   };
 };
 
 export const audioContexts = (page: Page) => page.evaluate(() => (window as unknown as { audioContexts: number }).audioContexts);
+
+/** The state of each AudioContext the page created (with `COUNT_AUDIO_CONTEXTS`). */
+export const audioContextStates = (page: Page) =>
+  page.evaluate(() => (window as unknown as { audioContextList: AudioContext[] }).audioContextList.map((context) => context.state));
+
+/** Notes whether the entry gate ever appeared, from before any of the page's scripts run. */
+export const RECORD_GATE = () => {
+  const w = window as unknown as { gateSeen: boolean };
+  w.gateSeen = false;
+  new MutationObserver(() => {
+    if (document.querySelector('.loading-gate')) w.gateSeen = true;
+  }).observe(document, { childList: true, subtree: true });
+};
+
+export const gateSeen = (page: Page) => page.evaluate(() => (window as unknown as { gateSeen: boolean }).gateSeen);
 
 /** Scrolls the window to a section's point on the path, as a visitor's scroll would, and waits for the camera. */
 export async function scrollToSection(page: Page, id: SectionId) {
@@ -92,8 +109,20 @@ export async function holdChunks(page: Page, names: string[]) {
 /** The loading screen (see `index.html`). */
 export const loadingScreen = (page: Page) => page.locator('#loading-screen');
 
-/** The scene's canvas has loaded and drawn, and the loading screen is gone. */
-export async function waitForScene(page: Page) {
+/** The entry gate at the end of the loading screen (see `src/ui/loadingScreen.ts`), and its two buttons. */
+export const gate = (page: Page) => loadingScreen(page).locator('.loading-gate');
+export const enterButton = (page: Page) => page.getByRole('button', { name: 'Enter with sound', exact: true });
+export const quietButton = (page: Page) => page.getByRole('button', { name: 'Enter without sound', exact: true });
+
+/** Waits for the entry gate, presses Enter (with sound) or Enter without sound, and waits for the loading screen to
+ *  go. Without sound unless asked, so no AudioContext exists afterwards. */
+export async function passGate(page: Page, { sound = false }: { sound?: boolean } = {}) {
+  await (sound ? enterButton(page) : quietButton(page)).click({ timeout: 20_000 });
+  await expect(loadingScreen(page)).toHaveCount(0);
+}
+
+/** The scene's canvas has loaded and drawn, the visitor has passed the entry gate, and the loading screen is gone. */
+export async function waitForScene(page: Page, options: { sound?: boolean } = {}) {
   await expect(page.locator('.scene canvas')).toBeAttached({ timeout: 20_000 });
-  await expect(loadingScreen(page)).toHaveCount(0, { timeout: 20_000 });
+  await passGate(page, options);
 }

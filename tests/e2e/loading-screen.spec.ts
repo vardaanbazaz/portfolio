@@ -1,7 +1,26 @@
 import type { Page } from '@playwright/test';
 import { PAGE_PATHS } from '../../src/routes';
-import { LOADING_SCREEN_LIMIT_SECONDS } from '../../src/scene/tuning';
-import { chunkPattern, expect, holdChunks, loadingScreen, marker, PAGE_CHUNKS, PANEL_CHUNKS, scrollToSection, test } from './fixtures';
+import { GATE_FADE_IN_SECONDS, GATE_PULSE_MIN_INTERVAL_SECONDS, GATE_TARGET_MIN_PX, LOADING_SCREEN_LIMIT_SECONDS } from '../../src/scene/tuning';
+import {
+  audioContexts,
+  audioContextStates,
+  chunkPattern,
+  COUNT_AUDIO_CONTEXTS,
+  enterButton,
+  expect,
+  gate,
+  gateSeen,
+  holdChunks,
+  loadingScreen,
+  marker,
+  PAGE_CHUNKS,
+  PANEL_CHUNKS,
+  passGate,
+  quietButton,
+  RECORD_GATE,
+  scrollToSection,
+  test,
+} from './fixtures';
 
 /** Backdrop images: the landing's base and ground layers (`BACKDROPS` in `src/environment/backdrops.ts`, which
  *  imports media files Playwright can't load). */
@@ -14,21 +33,20 @@ const TOTAL_STEPS = 2 + IMAGES.length + PAGE_CHUNKS.length + PANEL_CHUNKS.length
  *  other step done. */
 const LAST_CHUNK = 'CitationPanel';
 
-/** Records, in page time, when the scene's first frame reached the loading screen and when the screen lifted. */
+/** Records, in page time, when the scene's first frame reached the loading screen and when the entry gate took the
+ *  bar's place (where the screen used to lift by itself). */
 const RECORD_LOADING = () => {
-  const w = window as unknown as { loading: { drawnAt?: number; liftedAt?: number } };
+  const w = window as unknown as { loading: { drawnAt?: number; gateAt?: number } };
   w.loading = {};
-  let seen = false;
   new MutationObserver(() => {
     const el = document.getElementById('loading-screen');
-    if (el) seen = true;
     if (el && 'drawn' in el.dataset) w.loading.drawnAt ??= performance.now();
-    if (seen && (!el || el.classList.contains('loading-screen-out'))) w.loading.liftedAt ??= performance.now();
+    if (el && 'gate' in el.dataset) w.loading.gateAt ??= performance.now();
   }).observe(document, { childList: true, subtree: true, attributes: true });
 };
 
 const recorded = (page: Page) =>
-  page.evaluate(() => (window as unknown as { loading: { drawnAt: number; liftedAt: number } }).loading);
+  page.evaluate(() => (window as unknown as { loading: { drawnAt: number; gateAt: number } }).loading);
 
 /** Holds back animation frames until the test releases them, so the scene can't draw its first frame and the limit
  *  never starts: the loading screen stays up for as long as the test needs. */
@@ -94,7 +112,7 @@ test.describe('with JavaScript off', () => {
   });
 });
 
-test('the loading screen stays while a chunk is held back, and lifts when it arrives', async ({ page }) => {
+test('the entry gate appears only once loading is done: not while a chunk is held back, but when it arrives', async ({ page }) => {
   await page.addInitScript(RECORD_LOADING);
   // The first frame is held too, so the limit can't start while the other chunks arrive.
   await page.addInitScript(HOLD_FRAMES);
@@ -103,20 +121,29 @@ test('the loading screen stays while a chunk is held back, and lifts when it arr
   // Every step but the first frame and the held chunk is done.
   await expect(loadingScreen(page)).toHaveAttribute('data-done', String(TOTAL_STEPS - 2), { timeout: 20_000 });
   await expect(loadingScreen(page)).not.toHaveAttribute('data-drawn');
+  await expect(gate(page)).toHaveCount(0);
 
   // Now the limit starts, with only the held chunk left.
   await releaseFrames(page);
   await expectAllButOne(page);
   await expect(loadingScreen(page)).toBeVisible();
+  await expect(gate(page)).toHaveCount(0);
+  await expect(loadingScreen(page).locator('.loading-screen-bar')).toBeVisible();
   await expect(page.locator('#root')).toHaveAttribute('inert');
 
+  // The chunk's arrival brings the gate, not the site: the screen stays, locked, until the visitor presses.
   await held.release();
-  await expect(loadingScreen(page)).toHaveCount(0);
+  await expect(gate(page)).toBeVisible();
+  await expect(loadingScreen(page).locator('.loading-screen-bar')).toBeHidden();
+  await expect(page.locator('#root')).toHaveAttribute('inert');
+  await expect(page.locator('html')).toHaveClass('booting');
+  // It came on the chunk's arrival, before the limit could have brought it.
+  const { drawnAt, gateAt } = await recorded(page);
+  expect(gateAt - drawnAt).toBeLessThan(LOADING_SCREEN_LIMIT_SECONDS * 1000);
+
+  await passGate(page);
   await expect(page.locator('#root')).not.toHaveAttribute('inert');
   await expect(page.locator('html')).not.toHaveClass('booting');
-  // It lifted on the chunk's arrival, before the limit could have lifted it.
-  const { drawnAt, liftedAt } = await recorded(page);
-  expect(liftedAt - drawnAt).toBeLessThan(LOADING_SCREEN_LIMIT_SECONDS * 1000);
 });
 
 /** Records, in page time, when each image's decode() resolved, by its URL. */
@@ -150,13 +177,13 @@ test('the loading screen waits for both landing images to decode', async ({ page
   await expect.poll(() => held.length).toBeGreaterThan(0);
   for (const route of held.splice(0)) await route.continue();
   await page.unroute(/landing-ground-[\w-]+\.webp(\?.*)?$/);
-  await expect(loadingScreen(page)).toHaveCount(0);
-  const { liftedAt } = await recorded(page);
+  await expect(gate(page)).toBeVisible();
+  const { gateAt } = await recorded(page);
   const decodes = await page.evaluate(() => (window as unknown as { decodes: { src: string; at: number }[] }).decodes);
   for (const name of IMAGES) {
     const first = decodes.find(({ src }) => new URL(src).pathname.includes(`/${name}-`));
     expect(first, `${name} decoded`).toBeDefined();
-    expect(first!.at, `${name} decoded before the screen lifted`).toBeLessThanOrEqual(liftedAt);
+    expect(first!.at, `${name} decoded before the gate appeared`).toBeLessThanOrEqual(gateAt);
   }
   // Both are in the page, decoded, behind the canvas.
   const images = page.locator('.backdrop[data-zone="landing"] img.backdrop-image');
@@ -164,14 +191,15 @@ test('the loading screen waits for both landing images to decode', async ({ page
   for (let i = 0; i < 2; i++) await expect(images.nth(i)).toHaveJSProperty('complete', true);
 });
 
-test('the loading screen lifts at the limit if a chunk never arrives, and that panel shows its own loading line', async ({ page }) => {
+test('the entry gate appears at the limit if a chunk never arrives, and that panel shows its own loading line', async ({ page }) => {
   // Never answered: the request stays open for the rest of the test.
   await page.route(chunkPattern(LAST_CHUNK), () => {});
   await page.goto('/');
   await expectAllButOne(page);
 
-  // The chunk is never answered, so only the limit can lift it.
-  await expect(loadingScreen(page)).toHaveCount(0, { timeout: LOADING_SCREEN_LIMIT_SECONDS * 1000 + 10_000 });
+  // The chunk is never answered, so only the limit can bring the gate.
+  await expect(gate(page)).toBeVisible({ timeout: LOADING_SCREEN_LIMIT_SECONDS * 1000 + 10_000 });
+  await passGate(page);
 
   await scrollToSection(page, 'publications');
   await marker(page, 'Web Page Linker').click();
@@ -199,14 +227,19 @@ test('while the loading screen is up, nothing behind it can be clicked, focused 
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
   await expect(loadingScreen(page)).toBeVisible();
 
-  // Once the scene draws, the screen lifts and the same press reaches the toggle, so the press above really aimed at it.
+  // Once the scene draws and the visitor enters with sound, the screen lifts and the same press reaches the toggle,
+  // so the press above really aimed at it.
   await releaseFrames(page);
-  await expect(loadingScreen(page)).toHaveCount(0);
+  await passGate(page, { sound: true });
+  await expect(mute).toHaveAttribute('aria-pressed', 'false');
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await expect(mute).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('a direct page link lifts the loading screen once that page is ready, without waiting for the other chunks', async ({ page }) => {
+test('a direct page link lifts the loading screen once that page is ready, without waiting for the other chunks or a gate', async ({
+  page,
+}) => {
+  await page.addInitScript(RECORD_GATE);
   const held = await holdChunks(page, [LAST_CHUNK]);
   await page.goto(PAGE_PATHS.attrition);
   const heading = page.getByRole('main').getByRole('heading', { level: 1 });
@@ -215,26 +248,166 @@ test('a direct page link lifts the loading screen once that page is ready, witho
   // The page took focus once the screen had cleared the way.
   await expect(heading).toBeFocused();
   await held.release();
+  expect(await gateSeen(page)).toBe(false);
 });
 
 test.describe('the HTML fallback', () => {
-  test('with reduced motion, the loading screen is gone once the fallback shows', async ({ browser }) => {
+  test('with reduced motion, the loading screen is gone once the fallback shows, with no gate', async ({ browser }) => {
     const context = await browser.newContext({ reducedMotion: 'reduce' });
     const page = await context.newPage();
+    await page.addInitScript(RECORD_GATE);
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1, name: 'Vardaan' })).toBeVisible();
     await expect(loadingScreen(page)).toHaveCount(0);
     await expect(page.locator('#root')).not.toHaveAttribute('inert');
     await expect(page.locator('html')).not.toHaveClass('booting');
+    expect(await gateSeen(page)).toBe(false);
     await context.close();
   });
 
-  test('if the scene code fails to load, the fallback shows and the loading screen goes', async ({ page }) => {
+  test('if the scene code fails to load, the fallback shows and the loading screen goes, with no gate', async ({ page }) => {
+    await page.addInitScript(RECORD_GATE);
     await page.route(chunkPattern('sceneMain'), (route) => route.abort());
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1, name: 'Vardaan' })).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('canvas')).toHaveCount(0);
     await expect(loadingScreen(page)).toHaveCount(0);
     await expect(page.locator('#root')).not.toHaveAttribute('inert');
+    expect(await gateSeen(page)).toBe(false);
+  });
+});
+
+test.describe('the entry gate', () => {
+  test('takes the bar\'s place without moving the name, and fits at 360 px', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 640 });
+    await page.goto('/');
+    const name = loadingScreen(page).getByText('Vardaan', { exact: true });
+    await expect(name).toBeVisible();
+    const before = await name.boundingBox();
+    await expect(gate(page)).toBeVisible({ timeout: 20_000 });
+    // After its fade-in.
+    await page.waitForTimeout(GATE_FADE_IN_SECONDS * 1000 + 100);
+    expect(await name.boundingBox()).toEqual(before);
+    for (const button of [enterButton(page), quietButton(page)]) {
+      const box = (await button.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(GATE_TARGET_MIN_PX);
+      expect(box.x).toBeGreaterThanOrEqual(16);
+      expect(box.x + box.width).toBeLessThanOrEqual(360 - 16);
+    }
+    await expect(enterButton(page)).toHaveCSS('color', 'rgb(206, 202, 175)');
+    await expect(enterButton(page)).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+  });
+
+  for (const sound of [true, false]) {
+    test(`Enter${sound ? '' : ' without sound'} lifts the screen and saves mute ${sound ? 'off' : 'on'}`, async ({ page }) => {
+      await page.goto('/');
+      await passGate(page, { sound });
+      await expect(page.locator('#root')).not.toHaveAttribute('inert');
+      await expect(page.locator('html')).not.toHaveClass('booting');
+      await expect(page.getByRole('button', { name: 'Mute' })).toHaveAttribute('aria-pressed', String(!sound));
+      expect(await page.evaluate(() => localStorage.getItem('muted'))).toBe(String(!sound));
+    });
+  }
+
+  test('Enter resumes the audio context in its own press; nothing before it creates one', async ({ page }) => {
+    await page.addInitScript(COUNT_AUDIO_CONTEXTS);
+    await page.goto('/');
+    await expect(gate(page)).toBeVisible({ timeout: 20_000 });
+    // Hovering, wheeling and a scroll key under the gate are not the press.
+    await page.mouse.move(640, 200);
+    await page.mouse.wheel(0, 500);
+    await page.keyboard.press('ArrowDown');
+    expect(await audioContexts(page)).toBe(0);
+    await enterButton(page).click();
+    await expect(loadingScreen(page)).toHaveCount(0);
+    expect(await audioContexts(page)).toBe(1);
+    await expect.poll(() => audioContextStates(page)).toEqual(['running']);
+  });
+
+  test('Enter without sound creates no audio context, and presses after it create none', async ({ page }) => {
+    await page.addInitScript(COUNT_AUDIO_CONTEXTS);
+    await page.goto('/');
+    await passGate(page);
+    await page.mouse.click(640, 360);
+    await page.keyboard.press('Tab');
+    expect(await audioContexts(page)).toBe(0);
+  });
+
+  test('focuses Enter by default and Enter without sound when mute was saved; Tab moves between them', async ({ page }) => {
+    await page.goto('/');
+    await expect(gate(page)).toBeVisible({ timeout: 20_000 });
+    await expect(enterButton(page)).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(quietButton(page)).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(enterButton(page)).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(quietButton(page)).toBeFocused();
+
+    await page.addInitScript(() => localStorage.setItem('muted', 'true'));
+    await page.goto('/');
+    await expect(gate(page)).toBeVisible({ timeout: 20_000 });
+    await expect(quietButton(page)).toBeFocused();
+  });
+
+  test('the keyboard Enter key on the focused button enters with sound', async ({ page }) => {
+    await page.addInitScript(COUNT_AUDIO_CONTEXTS);
+    await page.goto('/');
+    await expect(enterButton(page)).toBeFocused({ timeout: 20_000 });
+    await page.keyboard.press('Enter');
+    await expect(loadingScreen(page)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Mute' })).toHaveAttribute('aria-pressed', 'false');
+    await expect.poll(() => audioContextStates(page)).toEqual(['running']);
+  });
+
+  test('a wheel or a scroll key under the gate moves nothing and pulses Enter, at most once per interval', async ({ page }) => {
+    await page.goto('/');
+    await expect(gate(page)).toBeVisible({ timeout: 20_000 });
+    const pulses = () => enterButton(page).evaluate((el) => Number(el.dataset.pulses ?? 0));
+    await page.mouse.move(640, 200);
+    await page.mouse.wheel(0, 2000);
+    await page.mouse.wheel(0, 2000);
+    await page.keyboard.press('PageDown');
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    expect(await pulses()).toBe(1);
+    await page.waitForTimeout(GATE_PULSE_MIN_INTERVAL_SECONDS * 1000 + 100);
+    await page.keyboard.press('ArrowDown');
+    expect(await pulses()).toBe(2);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+    // The same wheel scrolls once the gate is passed, so the one above really would have.
+    await passGate(page);
+    await page.mouse.wheel(0, 2000);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  });
+
+  test.describe('on a touch screen', () => {
+    test.use({ hasTouch: true });
+
+    test('a touch scroll under the gate moves nothing and pulses Enter', async ({ page }) => {
+      await page.goto('/');
+      await expect(gate(page)).toBeVisible({ timeout: 20_000 });
+      const pulses = () => enterButton(page).evaluate((el) => Number(el.dataset.pulses ?? 0));
+      const cdp = await page.context().newCDPSession(page);
+      // A touch drag upward, which scrolls the page down, from low on the screen away from the buttons. Raw touch
+      // input: Chromium's synthesized scroll gesture scrolls nothing in headless runs, even on the HTML site.
+      const swipe = async () => {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 640, y: 650 }] });
+        for (let i = 1; i <= 20; i++) {
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 640, y: 650 - i * 20 }] });
+        }
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      };
+      await swipe();
+      await page.waitForTimeout(300);
+      expect(await page.evaluate(() => window.scrollY)).toBe(0);
+      expect(await pulses()).toBe(1);
+
+      await passGate(page);
+      await swipe();
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    });
   });
 });

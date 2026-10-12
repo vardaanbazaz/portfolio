@@ -17,8 +17,8 @@ function showFallback() {
 }
 
 if (sceneSupported(window)) {
-  // A press while the scene's code is still on its way (the loading screen is up) is the visitor's first press, and
-  // starts sound once that code arrives. The same presses as `GESTURE_EVENTS` in src/sound/sound.ts, which takes
+  // On a direct page link, a press while the scene's code is still on its way (the loading screen is up) is the
+  // visitor's first press, and starts sound once that code arrives. Elsewhere the entry gate starts sound instead. The same presses as `GESTURE_EVENTS` in src/sound/sound.ts, which takes
   // over from here.
   let pressed = false;
   const presses = ['pointerdown', 'pointerup', 'click', 'keydown'] as const;

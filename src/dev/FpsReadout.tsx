@@ -87,7 +87,7 @@ const fixed = (value: number | undefined, digits: number) => (value === undefine
 function landingBackdropLine(): string {
   const player = backdropProbe('landing');
   const layer = document.querySelector<HTMLElement>('.backdrop[data-zone="landing"]');
-  const images = layer ? Array.from(layer.querySelectorAll('img')) : [];
+  const images = layer ? Array.from(layer.querySelectorAll('img.backdrop-image')) : [];
   const t = sceneProbe.pathT?.current;
   const layerStyle = layer && getComputedStyle(layer);
   const dome = sceneProbe.dome;

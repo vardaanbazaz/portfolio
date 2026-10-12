@@ -1,8 +1,9 @@
 /**
  * Interface sound: the synthesized fly-in and fly-out sweeps, and each zone's looping ambient bed (a bundled file).
  * The only module that touches Web Audio. The AudioContext is created only by `unlock()`, which runs on the
- * visitor's first pointer or key press anywhere on the page (or at `listen()`, for a press that came before it);
- * never at import time or on a load nobody has pressed during, and never while muted.
+ * visitor's pointer and key presses once `listen()` has run, and at `listen()` itself for a press it is told came
+ * first (the entry gate's Enter, or a press during loading on a direct page link); never at import time or on a load
+ * nobody has pressed during, and never while muted.
  * Ambient files are fetched only once that context exists.
  */
 
@@ -187,9 +188,10 @@ export const sound = {
 
   /**
    * Runs `unlock()` on every pointer and key press on `target`, and suspends the context while `doc` is hidden.
-   * Call once at startup. Creates nothing by itself, unless `pressedBefore`: the visitor pressed before this ran
-   * (during the loading screen, before the scene's code arrived). That press counts as the first; the browser still
-   * lets the page start sound on it.
+   * Call once: at startup on a direct page link, or from inside the entry gate's press on the scene site. Creates
+   * nothing by itself, unless `pressedBefore`: the press that counts as the first came before or during this call
+   * (a press during the loading screen on a direct page link, or the gate's Enter itself). The browser still lets the
+   * page start sound on it.
    */
   listen(target: EventTarget, doc: VisibilitySource, pressedBefore = false) {
     visibility = doc;

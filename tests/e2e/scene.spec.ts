@@ -138,11 +138,12 @@ test('the FPS readout loads only with ?fps', async ({ page }) => {
   await expect.poll(() => requested.some((url) => url.includes('FpsReadout'))).toBe(true);
 });
 
-test('no AudioContext exists before the first press', async ({ page }) => {
+test('after Enter without sound, no press creates an AudioContext until Mute is turned off; the next press does', async ({
+  page,
+}) => {
   await page.addInitScript(COUNT_AUDIO_CONTEXTS);
   await page.goto('/');
   await waitForScene(page);
-  // Wheel scrolling and hovering are not presses.
   await page.mouse.move(640, 360);
   await page.mouse.wheel(0, 2000);
   // Let the wheel's smooth scroll finish, so it can't carry on past the section scrolled to next.
@@ -152,7 +153,17 @@ test('no AudioContext exists before the first press', async ({ page }) => {
     return (await page.evaluate(() => window.scrollY)) === before && before > 0;
   }).toBe(true);
   await scrollToSection(page, 'projects');
-  await marker(page, 'DataVista').hover();
+  await marker(page, 'DataVista').click();
+  await expect(page.getByRole('main')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expectExploring(page);
+  expect(await audioContexts(page)).toBe(0);
+
+  // Turning sound on creates nothing by itself; the press after it does.
+  const mute = page.getByRole('button', { name: 'Mute' });
+  await expect(mute).toHaveAttribute('aria-pressed', 'true');
+  await mute.click();
+  await expect(mute).toHaveAttribute('aria-pressed', 'false');
   expect(await audioContexts(page)).toBe(0);
   await marker(page, 'DataVista').click();
   await expect(page.getByRole('main')).toBeVisible();

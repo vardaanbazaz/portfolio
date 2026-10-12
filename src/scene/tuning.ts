@@ -7,6 +7,54 @@ export const LOADING_SCREEN_LIMIT_SECONDS = 4;
 /** Seconds for the loading screen to fade out (none with reduced motion). */
 export const LOADING_SCREEN_FADE_SECONDS = 0.3;
 
+/** The entry gate: on the scene site, once the loading screen would lift, its bar gives way to an Enter button (with
+ *  sound) and a quieter Enter without sound, so the press that starts sound is the visitor's own. Seconds for it to
+ *  fade in over the bar (none with reduced motion). */
+export const GATE_FADE_IN_SECONDS = 0.4;
+
+/** Height of each gate button at least, in px: a comfortable touch target. */
+export const GATE_TARGET_MIN_PX = 44;
+
+/** Width of the Enter button, in px, never wider than the screen less a 16px gutter each side. */
+export const GATE_ENTER_WIDTH_PX = 220;
+
+/** Space between the two gate buttons, in px. */
+export const GATE_GAP_PX = 8;
+
+/** Gate text sizes, in px: the Enter label, its "with sound" line, and Enter without sound. */
+export const GATE_ENTER_FONT_PX = 17;
+export const GATE_ENTER_SUBLINE_FONT_PX = 12;
+export const GATE_QUIET_FONT_PX = 14;
+
+/** The speaker icon beside Enter, and the space between it and the label, in px. */
+export const GATE_ICON_PX = 16;
+export const GATE_ICON_GAP_PX = 10;
+
+/** Gate button padding in px (vertical, horizontal; Enter without sound has no vertical padding), corner radius,
+ *  border and the underline's offset under Enter without sound. */
+export const GATE_ENTER_PADDING_PX: [vertical: number, horizontal: number] = [6, 16];
+export const GATE_QUIET_PADDING_X_PX = 12;
+export const GATE_RADIUS_PX = 6;
+export const GATE_BORDER_PX = 1;
+export const GATE_UNDERLINE_OFFSET_PX = 3;
+
+/** The focus ring on a gate button: its width and its gap from the button, in px. */
+export const GATE_FOCUS_RING_PX = 2;
+export const GATE_FOCUS_RING_OFFSET_PX = 2;
+
+/** The gate never comes closer than this to either side of the screen, in px. */
+export const GATE_SIDE_GUTTER_PX = 16;
+
+/** A wheel, touch scroll or scroll key while the gate shows pulses the Enter button once, this long, scaling it up
+ *  to `GATE_PULSE_SCALE` and back (with reduced motion, only its border brightens), and no more often than every
+ *  `GATE_PULSE_MIN_INTERVAL_SECONDS`. */
+export const GATE_PULSE_SECONDS = 0.6;
+export const GATE_PULSE_SCALE = 1.04;
+export const GATE_PULSE_MIN_INTERVAL_SECONDS = 2;
+
+/** A touch that moves this many px under the gate counts as a scroll attempt; less is a tap. */
+export const GATE_TOUCH_SLOP_PX = 10;
+
 /**
  * How quickly the camera eases toward the scroll position, per second.
  * Higher is snappier, lower glides more. 4 closes about 98% of the gap in one second.

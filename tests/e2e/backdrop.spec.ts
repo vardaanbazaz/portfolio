@@ -6,8 +6,10 @@ import { SECTION_IDS, type SectionId } from '../../src/sections/contract';
 import {
   audioContexts,
   COUNT_AUDIO_CONTEXTS,
+  enterButton,
   expect,
   expectExploring,
+  gate,
   holdChunks,
   scrollToSection,
   test,
@@ -226,19 +228,19 @@ test.describe('the landing ambient bed', () => {
     return urls;
   };
 
-  test('is fetched only after the first press, loops its whole length, and fades out under an open page', async ({ page }) => {
+  test('is fetched only after Enter, loops its whole length, and fades out under an open page', async ({ page }) => {
     const fetched = ambientRequests(page);
     await page.addInitScript(COUNT_AUDIO_CONTEXTS);
     await page.addInitScript(RECORD_AUDIO);
     await page.goto('/');
-    await waitForScene(page);
-    await page.mouse.move(640, 360);
+    await expect(gate(page)).toBeVisible({ timeout: 20_000 });
+    await page.mouse.move(640, 200);
     await page.mouse.wheel(0, 200);
     await page.waitForTimeout(500);
     expect(fetched).toEqual([]);
     expect(await audioContexts(page)).toBe(0);
 
-    await page.mouse.click(640, 360);
+    await enterButton(page).click();
     await expect.poll(() => fetched.length).toBe(1);
     expect(await audioContexts(page)).toBe(1);
     // The whole 8.405 s loop decodes, with no encoder padding added at either end to break the seam.
@@ -267,8 +269,7 @@ test.describe('the landing ambient bed', () => {
   test('the mute toggle fades it out and back in', async ({ page }) => {
     await page.addInitScript(RECORD_AUDIO);
     await page.goto('/');
-    await waitForScene(page);
-    await page.mouse.click(640, 360);
+    await waitForScene(page, { sound: true });
     await expect.poll(async () => (await recorded(page)).targets.some((v) => v > 0)).toBe(true);
     const mute = page.getByRole('button', { name: 'Mute' });
     await mute.click();
@@ -279,7 +280,7 @@ test.describe('the landing ambient bed', () => {
     await expect.poll(async () => (await recorded(page)).targets.at(-1)).toBe(1);
   });
 
-  /** The time of the first press, and of the first bed started, from navigation start. */
+  /** The time of the first press (Enter's), and of the first bed started, from navigation start. */
   const RECORD_START = () => {
     const w = window as unknown as { pressedAt?: number; bedAt?: number };
     addEventListener('pointerdown', () => (w.pressedAt ??= performance.now()), { capture: true });
@@ -297,28 +298,25 @@ test.describe('the landing ambient bed', () => {
     return pressedAt === undefined || bedAt === undefined ? null : bedAt - pressedAt;
   };
 
-  test('starts within a second of the first press at the landing, with no scroll', async ({ page }) => {
+  test('starts within a second of Enter at the landing, with no scroll', async ({ page }) => {
     await page.addInitScript(RECORD_START);
     await page.goto('/');
-    await waitForScene(page);
-    await page.mouse.click(640, 360);
+    await waitForScene(page, { sound: true });
     await expect.poll(() => bedDelay(page)).not.toBeNull();
     expect(await bedDelay(page)).toBeLessThan(1000);
   });
 
-  test('starts from a press made while the loading screen is up, before the scene code has arrived', async ({ page }) => {
+  test('on a direct page link, which has no gate, a press made before the scene code arrived starts sound', async ({ page }) => {
     await page.addInitScript(COUNT_AUDIO_CONTEXTS);
-    await page.addInitScript(RECORD_START);
     const scene = await holdChunks(page, ['sceneMain']);
-    await page.goto('/');
+    await page.goto(PAGE_PATHS.about);
     await expect.poll(scene.requested).toBe(1);
     await page.mouse.click(640, 360);
     expect(await audioContexts(page)).toBe(0);
     await scene.release();
-    await waitForScene(page);
-    // No second press.
-    await expect.poll(() => bedDelay(page), { timeout: 15_000 }).not.toBeNull();
-    expect(await audioContexts(page)).toBe(1);
+    await expect(page.locator('main.page')).toBeVisible({ timeout: 20_000 });
+    // No second press. The landing's bed stays faded out under the page, so the context itself is what shows it.
+    await expect.poll(() => audioContexts(page), { timeout: 15_000 }).toBe(1);
   });
 });
 

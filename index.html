@@ -64,6 +64,93 @@
       white-space: nowrap;
     }
 
+    .loading-screen-slot {
+      position: relative;
+    }
+
+    /* The entry gate (built by src/ui/loadingScreen.ts, its sizes from src/scene/tuning.ts as the --gate-* custom
+       properties): it hangs from the bar's slot, so the screen's layout doesn't change. Text in Sulphur Yellow, the
+       landing's --landing-text, with thin borders and no fill. */
+    .loading-screen-gated .loading-screen-bar {
+      visibility: hidden;
+    }
+
+    .loading-gate {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(var(--gate-enter-width), calc(100vw - 2 * var(--gate-side-gutter)));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--gate-gap);
+    }
+
+    .loading-gate button {
+      margin: 0;
+      min-width: var(--gate-target);
+      min-height: var(--gate-target);
+      color: #cecaaf;
+      background: transparent;
+      border: var(--gate-border) solid transparent;
+      border-radius: var(--gate-radius);
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .loading-gate button:focus-visible {
+      outline: var(--gate-focus-ring) solid #cecaaf;
+      outline-offset: var(--gate-focus-ring-offset);
+    }
+
+    .loading-gate-enter {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--gate-icon-gap);
+      padding: var(--gate-enter-padding);
+      border-color: rgb(206 202 175 / 0.6);
+      font-size: var(--gate-enter-font);
+      font-weight: 600;
+    }
+
+    .loading-gate-enter:hover {
+      border-color: #cecaaf;
+    }
+
+    .loading-gate-icon {
+      flex: none;
+      width: var(--gate-icon);
+      height: var(--gate-icon);
+    }
+
+    .loading-gate-label {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      line-height: 1.2;
+    }
+
+    .loading-gate-subline {
+      font-size: var(--gate-subline-font);
+      font-weight: 400;
+    }
+
+    .loading-gate-quiet {
+      padding: var(--gate-quiet-padding);
+      font-size: var(--gate-quiet-font);
+      text-decoration: underline;
+      text-underline-offset: var(--gate-underline-offset);
+      text-decoration-color: rgb(206 202 175 / 0.5);
+    }
+
+    .loading-gate-quiet:hover {
+      border-color: transparent;
+      text-decoration-color: currentColor;
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .loading-screen-fill {
         transition: none;
@@ -75,13 +162,17 @@
 <body>
   <div id="loading-screen" class="loading-screen">
     <p class="loading-screen-name">Vardaan</p>
-    <div class="loading-screen-bar" aria-hidden="true">
-      <div class="loading-screen-fill"></div>
+    <!-- The bar's slot. On the scene site the entry gate takes the bar's place here, out of the flow, so the name
+         doesn't move when it appears. -->
+    <div class="loading-screen-slot">
+      <div class="loading-screen-bar" aria-hidden="true">
+        <div class="loading-screen-fill"></div>
+      </div>
     </div>
     <noscript>
       <p>This site needs JavaScript. Turn it on and reload.</p>
       <style>
-        .loading-screen-bar,
+        .loading-screen-slot,
         .loading-screen-status {
           display: none;
         }

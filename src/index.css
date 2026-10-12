@@ -200,9 +200,14 @@ h2:focus-visible,
    small line and 3.2 for the name and verse (measured at 1920x1080, 1366x768 and 1280x720 against the lightest pixel
    behind each line, with the stars showing and the text and its halo hidden). Deepest where the last small line sits
    on short screens. In pixels, as the text block is, but never past two thirds of the height, so it is gone before
-   the horizon and the bottom corners on short screens too. */
+   the horizon and the bottom corners on short screens too.
+   A second shade along the bottom edge, gone by a fifth of the height, keeps the scroll cue at 4.5 or more against
+   the lightest pixel behind it (4.500 at 1280x720, 4.87 at 1366x768, 4.65 at 1920x1080, measured the same way, with
+   the pointer at rest and in each corner). 0.5 is the lightest that does it. */
 .backdrop-shade {
-  background: linear-gradient(to bottom, rgb(0 0 0 / 0.2), rgb(0 0 0 / 0.27) min(340px, 47vh), rgb(0 0 0 / 0) min(470px, 65vh));
+  background:
+    linear-gradient(to top, rgb(0 0 0 / 0.5), rgb(0 0 0 / 0) 20%),
+    linear-gradient(to bottom, rgb(0 0 0 / 0.2), rgb(0 0 0 / 0.27) min(340px, 47vh), rgb(0 0 0 / 0) min(470px, 65vh));
 }
 
 /* Sets the scrollable height that drives the camera. svh keeps it steady while mobile address bars show and hide. */
