@@ -52,11 +52,11 @@ export const BACKDROPS: readonly ZoneBackdrop[] = [
       { src: landingBase, depth: 0.3 },
       { src: landingGround, depth: 1 },
     ],
-    // Row 438 of 864.
-    horizon: 0.507,
-    focusX: 0.5,
-    // The glow's centre (column 780 of 1536), so it stays in frame on the narrowest phones.
-    portraitFocusX: 0.508,
+    // Row 725 of 1152: the first row of dark land, under the pale strip.
+    horizon: 0.629,
+    // The glow's centre (column 1031 of 2048), so it stays in frame on the narrowest phones.
+    focusX: 0.503,
+    portraitFocusX: 0.503,
     effects: ['mist', 'stars'],
     ambient: landingAmbient,
   },

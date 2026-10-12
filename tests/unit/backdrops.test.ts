@@ -226,7 +226,7 @@ describe('the landing backdrop', () => {
     const [landing] = BACKDROPS;
     expect(landing.layers.map((l) => l.depth)).toEqual([0.3, 1]);
     expect(landing.effects).toEqual(['mist', 'stars']);
-    expect(landing.horizon).toBeCloseTo(438 / 864, 3);
+    expect(landing.horizon).toBeCloseTo(725 / 1152, 3);
   });
 });
 
@@ -271,7 +271,7 @@ describe('layerPose', () => {
       for (const depth of [0.3, 1]) {
         for (const weight of [0, 0.5, 1]) {
           for (const [px, py] of [[-1, -1], [1, 1], [-1, 1], [1, -1], [0, 0]]) {
-            const horizon = 0.507;
+            const horizon = 0.629;
             const { x, y, scale } = layerPose(depth, weight, px, py, horizon, width, height);
             // The scaled box about (50%, horizon), then moved: it still covers the view.
             const left = (width / 2) * (1 - scale) + x;

@@ -190,11 +190,11 @@ h2:focus-visible,
 }
 
 /* Darkens the upper sky under the landing text, just enough for AA contrast behind every small line (measured at
-   1920x1080 and 1366x768 against the lightest image pixel behind each line, with the code-drawn stars hidden). In pixels, as the text block
+   1920x1080, 1366x768 and 1280x720 against the lightest image pixel behind each line, with the code-drawn stars hidden). In pixels, as the text block
    is, but never past two thirds of the height, so it is gone before the horizon and the bottom corners on short
    screens too. */
 .backdrop-shade {
-  background: linear-gradient(to bottom, rgb(0 0 0 / 0.2), rgb(0 0 0 / 0.7) min(340px, 47vh), rgb(0 0 0 / 0) min(470px, 65vh));
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.2), rgb(0 0 0 / 0.19) min(340px, 47vh), rgb(0 0 0 / 0) min(470px, 65vh));
 }
 
 /* Sets the scrollable height that drives the camera. svh keeps it steady while mobile address bars show and hide. */
