@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
 import { LANDING, SECTION_LINES, SECTION_NOTES, SECTION_TITLES } from '../content/scene';
+import { sceneProbe } from '../dev/sceneProbe';
 import { Backdrops, BackdropTracker } from '../environment/Backdrops';
 import { environment, zoneVisuals } from '../environment/registry';
 import { ZoneVisuals } from '../environment/ZoneVisuals';
@@ -56,6 +57,14 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
   const target = useMemo(() => (page ? { page, item: item ?? undefined } : null), [page, item]);
   const activeMarker = target ? markerAt(target) : undefined;
   const framing = panel ? (stacked ? 'stacked' : 'side') : 'whole';
+  // The opaque page covers the scene, so stop drawing while it is open. A panel keeps the scene drawing.
+  const frameloop = phase === 'open' && !panel ? 'demand' : 'always';
+
+  useEffect(() => {
+    sceneProbe.pathT = frame.pathT;
+    sceneProbe.quality = quality;
+    sceneProbe.frameloop = frameloop;
+  }, [frame, quality, frameloop]);
 
   // Drop to low quality on a sustained frame-rate decline and never climb back this session.
   const onDecline = () => {
@@ -75,8 +84,7 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
       <Backdrops pageOpen={phase === 'open' && !panel} />
       <Canvas
         dpr={dpr}
-        // The opaque page covers the scene, so stop drawing while it is open. A panel keeps the scene drawing.
-        frameloop={phase === 'open' && !panel ? 'demand' : 'always'}
+        frameloop={frameloop}
         gl={{ antialias: startQuality === 'high' }}
         camera={{ fov: BASE_FOV, near: 0.1, far: 200, position: pathPos(0).toArray() }}
         onCreated={({ gl }) => {

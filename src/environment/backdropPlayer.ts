@@ -6,8 +6,9 @@ import { ambientLevel, backdropWeight, BACKDROPS, layerOpacities, shouldPlay, ty
  * Drives each zone's backdrop from outside React: its layer's opacity follows the zone's weight, its video plays only
  * while it should (`shouldPlay`), and its ambient bed's level follows the weight (`ambientLevel`). The scene calls
  * `followPath` every frame; page and tab changes come in as events, since frames stop under an open page and in a
- * hidden tab. Each frame also checks every video against what it should be doing, so one the browser paused or
- * refused to play starts again even once the camera has settled and nothing on the path changes.
+ * hidden tab. Each frame also checks every layer and video against what it should be doing, so a layer that lost its
+ * styles shows again, and a video the browser paused or refused to play starts again, even once the camera has settled
+ * and nothing on the path changes.
  */
 
 interface Slot {
@@ -64,13 +65,21 @@ function syncVideo(slot: Slot) {
   }
 }
 
+/** Sets a slot's layer to its opacity, shown only above 0. Writes nothing when the layer already has it, so it runs
+ *  every frame and a layer whose inline styles were lost or changed is put right on the next one. */
+function styleLayer(slot: Slot) {
+  const { layer, opacity } = slot;
+  if (!layer) return;
+  const visibility = opacity > 0 ? 'visible' : 'hidden';
+  if (layer.style.visibility !== visibility) layer.style.visibility = visibility;
+  // The browser reads "1.000" back as "1", so the two are compared as numbers; a missing opacity reads back as "".
+  const value = opacity.toFixed(3);
+  if (layer.style.opacity === '' || Number(layer.style.opacity) !== Number(value)) layer.style.opacity = value;
+}
+
 function apply(slot: Slot, fade: number) {
-  const { layer, weight, opacity, backdrop } = slot;
-  if (layer) {
-    const visibility = opacity > 0 ? 'visible' : 'hidden';
-    if (layer.style.visibility !== visibility) layer.style.visibility = visibility;
-    layer.style.opacity = opacity.toFixed(3);
-  }
+  const { weight, backdrop } = slot;
+  styleLayer(slot);
   syncVideo(slot);
   if (backdrop.ambient) sound.ambient(backdrop.ambient, ambientLevel(weight, pageOpen), fade);
 }
@@ -84,13 +93,14 @@ export function registerBackdrop(zone: ZoneBackdrop['zone'], layer: HTMLElement 
   if (layer) apply(slot, AMBIENT_FOLLOW_SECONDS);
 }
 
-/** Every frame: each backdrop follows its zone's weight at path position t. The layer and the ambient bed are only
- *  touched when the weight changes; the video is checked every frame. */
+/** Every frame: each backdrop follows its zone's weight at path position t. The ambient bed is only touched when the
+ *  weight changes; the layer and the video are checked every frame. */
 export function followPath(t: number) {
   const weights = slots.map((slot) => backdropWeight(t, slot.backdrop.zone));
   const opacities = layerOpacities(weights);
   slots.forEach((slot, i) => {
-    if (weights[i] === slot.weight && opacities[i] === slot.opacity && slot.layer?.style.opacity) {
+    if (weights[i] === slot.weight && opacities[i] === slot.opacity) {
+      styleLayer(slot);
       syncVideo(slot);
       return;
     }
@@ -122,6 +132,14 @@ export function listenVisibility(doc: Pick<Document, 'visibilityState'> & EventT
   };
   doc.addEventListener('visibilitychange', update);
   update();
+}
+
+/** The player's own state for one zone, for the dev readout (?fps). */
+export function backdropProbe(zone: ZoneBackdrop['zone']) {
+  const slot = slots.find((s) => s.backdrop.zone === zone);
+  if (!slot) return null;
+  const { layer, video, weight, opacity, starting } = slot;
+  return { held, pageOpen, tabHidden, layer, video, weight, opacity, starting };
 }
 
 /** The loading screen's step for each poster: `onLoaded` runs once per poster that arrives. A failed poster doesn't

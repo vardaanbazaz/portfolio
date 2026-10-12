@@ -32,9 +32,10 @@ async function player() {
   vi.resetModules();
   const module = await import('../../src/environment/backdropPlayer');
   const { video, calls } = fakeVideo();
-  module.registerBackdrop('landing', fakeLayer() as unknown as HTMLElement, video as unknown as HTMLVideoElement);
+  const layer = fakeLayer();
+  module.registerBackdrop('landing', layer as unknown as HTMLElement, video as unknown as HTMLVideoElement);
   module.releaseBackdrops();
-  return { ...module, video, calls };
+  return { ...module, layer, video, calls };
 }
 
 /** Lets settled promises run their handlers. */
@@ -97,5 +98,42 @@ describe('backdropPlayer at the landing, once the camera has settled', () => {
     expect(video.pause).toHaveBeenCalledTimes(1);
     followPath(1);
     expect(video.play).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('backdropPlayer keeps the landing layer shown once the camera has settled', () => {
+  it('shows it at the landing', async () => {
+    const { followPath, layer } = await player();
+    followPath(0);
+    expect(layer.style).toEqual({ visibility: 'visible', opacity: '1.000' });
+  });
+
+  it('puts back styles the layer lost, though the path has not moved', async () => {
+    const { followPath, layer } = await player();
+    followPath(0);
+    layer.style.visibility = '';
+    layer.style.opacity = '';
+    followPath(0);
+    expect(layer.style).toEqual({ visibility: 'visible', opacity: '1.000' });
+  });
+
+  it('shows it again when something else hid it or faded it out', async () => {
+    const { followPath, layer } = await player();
+    followPath(0);
+    layer.style.visibility = 'hidden';
+    followPath(0);
+    expect(layer.style.visibility).toBe('visible');
+    layer.style.opacity = '0';
+    followPath(0);
+    expect(layer.style.opacity).toBe('1.000');
+  });
+
+  it('leaves an opacity the browser wrote back in its own form alone', async () => {
+    const { followPath, layer } = await player();
+    followPath(0);
+    // As a browser reads back "1.000".
+    layer.style.opacity = '1';
+    followPath(0);
+    expect(layer.style.opacity).toBe('1');
   });
 });

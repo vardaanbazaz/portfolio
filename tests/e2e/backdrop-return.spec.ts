@@ -116,6 +116,65 @@ for (const { name, away, back } of RETURNS) {
   });
 }
 
+/** The ?fps readout's backdrop line: the landing's weight, and the dome's opacity as its material has it and as the
+ *  path says it should be. */
+async function readDome(page: Page) {
+  const text = (await page.locator('[data-readout="backdrop"]').textContent()) ?? '';
+  const match = /landing ([\d.]+) .* dome ([\d.]+) \(path ([\d.]+)\)/.exec(text);
+  if (!match) throw new Error(`no dome in the readout: ${text}`);
+  const [, landing, drawn, path] = match.map(Number);
+  return { landing, drawn, path };
+}
+
+/** How long to watch the landing after coming back: past the time the camera takes to settle. */
+const WATCH_MS = 8_000;
+
+test('back at the landing, the dome fades with the path and never covers the backdrop while the camera settles', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/?fps');
+  await waitForScene(page);
+  await scrollToSection(page, 'about');
+  await page.waitForTimeout(2_000);
+  const bg = await pageBackground(page);
+  await scrollToTop(page);
+
+  const problems: string[] = [];
+  let nearLanding = 0;
+  const end = Date.now() + WATCH_MS;
+  while (Date.now() < end) {
+    const dome = await readDome(page);
+    if (Math.abs(dome.drawn - dome.path) > 1e-3) problems.push(`dome drawn at ${dome.drawn}, path says ${dome.path}`);
+    // Close enough to the landing that the dome is all but gone: nothing dark may cover the sky now.
+    if (dome.landing >= 0.999) {
+      nearLanding++;
+      const pixel = await sample(page);
+      if (pixel.every((c, i) => Math.abs(c - bg[i]) <= BARE_TOLERANCE)) problems.push(`page background ${pixel} at weight ${dome.landing}`);
+    }
+    await page.waitForTimeout(100);
+  }
+  expect(problems).toEqual([]);
+  expect(nearLanding).toBeGreaterThan(3);
+});
+
+test('a landing layer that lost its styles shows again, though the camera has settled', async ({ page }) => {
+  await page.goto('/');
+  await waitForScene(page);
+  await expectPlaying(page);
+  const breakages: [string, (el: HTMLElement) => void][] = [
+    ['inline styles removed', (el) => el.removeAttribute('style')],
+    ['hidden', (el) => (el.style.visibility = 'hidden')],
+    ['faded out', (el) => (el.style.opacity = '0')],
+  ];
+  for (const [name, breakLayer] of breakages) {
+    await test.step(name, async () => {
+      await layer(page).evaluate(breakLayer);
+      await expect(layer(page)).toHaveCSS('visibility', 'visible');
+      await expect(layer(page)).toHaveCSS('opacity', '1');
+      await expectCovered(page);
+    });
+  }
+});
+
 test.describe('when the browser refuses play()', () => {
   test.describe.configure({ timeout: 120_000 });
 

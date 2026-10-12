@@ -1,5 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Stats } from '@react-three/drei';
+import type { ShaderMaterial } from 'three';
+import { backdropProbe } from '../environment/backdropPlayer';
+import { backdropWeight, worldOpacity } from '../environment/backdrops';
+import { sceneProbe } from './sceneProbe';
 
 /** No scrolling for this long after a wheel event counts as its scroll having finished, where `scrollend` is
  *  missing. Both browsers smooth-scroll a notch over a few frames, so reading scrollY at once would undercount. */
@@ -73,21 +77,77 @@ function useWheelReading() {
   return reading;
 }
 
-/** Frame-rate readout, and what the last wheel notch did to the scroll. Loaded only in dev or with ?fps in the URL. */
+/** three's blending modes by value, as the readout names them. */
+const BLENDING = ['none', 'normal', 'add', 'subtract', 'multiply', 'custom'];
+
+const fixed = (value: number | undefined, digits: number) => (value === undefined ? '?' : value.toFixed(digits));
+
+/** One line on the landing backdrop and what is drawn over it, as the browser has it now. The player's own record of
+ *  its layer and video is checked against the elements in the page, which a hot reload can leave out of step. */
+function landingBackdropLine(): string {
+  const player = backdropProbe('landing');
+  const layer = document.querySelector<HTMLElement>('.backdrop[data-zone="landing"]');
+  const video = layer?.querySelector('video') ?? null;
+  const poster = layer?.querySelector('img') ?? null;
+  const t = sceneProbe.pathT?.current;
+  const layerStyle = layer && getComputedStyle(layer);
+  const videoOpacity = video ? Number(getComputedStyle(video).opacity) : 0;
+  const dome = sceneProbe.dome;
+  const material = dome?.material as ShaderMaterial | undefined;
+  const domeOpacity = material?.uniforms?.opacity?.value as number | undefined;
+  return [
+    `t ${fixed(t, 4)}`,
+    // Enough digits to tell a weight a hair under 1 from 1, where the dome is still drawn.
+    `landing ${t === undefined ? '?' : backdropWeight(t, 'landing').toFixed(6)}`,
+    `layer ${layerStyle ? `${layerStyle.visibility} ${Number(layerStyle.opacity).toFixed(3)}` : 'none'}`,
+    // The dome's opacity as its material has it, then as the path says it should be.
+    `dome ${dome ? `${fixed(domeOpacity, 4)} (path ${t === undefined ? '?' : worldOpacity(t).toFixed(4)}) ${dome.visible ? 'drawn' : 'off'} ${BLENDING[material?.blending ?? -1] ?? material?.blending}` : 'none'}`,
+    `poster ${poster?.complete && poster.naturalWidth > 0 ? 'loaded' : 'not loaded'}`,
+    `showing ${video && videoOpacity > 0 ? `video ${videoOpacity.toFixed(2)}` : 'poster'}`,
+    video
+      ? `video ${video.paused ? 'paused' : 'playing'} rs ${video.readyState} at ${video.currentTime.toFixed(2)}s`
+      : 'video none',
+    `quality ${sceneProbe.quality ?? '?'}`,
+    `frameloop ${sceneProbe.frameloop ?? '?'}`,
+    player
+      ? `player ${player.held ? 'held' : 'released'}` +
+        `${player.layer === layer ? '' : ' layer stale'}${player.video === video ? '' : ' video stale'}`
+      : 'player none',
+  ].join(' · ');
+}
+
+/** Rewrites its line every animation frame, outside React, so it keeps going while the canvas draws on demand. */
+function BackdropReadout() {
+  const line = useRef<HTMLOutputElement>(null);
+  useEffect(() => {
+    let frame = requestAnimationFrame(function update() {
+      if (line.current) line.current.textContent = landingBackdropLine();
+      frame = requestAnimationFrame(update);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return <output ref={line} className="dev-readout-line" data-readout="backdrop" aria-hidden="true" />;
+}
+
+/** Frame-rate readout, what the last wheel notch did to the scroll, and the landing backdrop's state. Loaded only in
+ *  dev or with ?fps in the URL. */
 export default function FpsReadout() {
   const wheel = useWheelReading();
   return (
     <>
       <Stats />
-      <output className="wheel-readout" aria-hidden="true">
-        {wheel
-          ? `wheel deltaY ${wheel.deltaY.toFixed(1)} ${MODES[wheel.deltaMode] ?? wheel.deltaMode} (mode ${wheel.deltaMode})` +
-            ` · scrolled ${wheel.px.toFixed(0)} px over ${wheel.events} event${wheel.events === 1 ? '' : 's'}` +
-            ` (${(wheel.px / wheel.events).toFixed(0)} px each)` +
-            ` · ${((wheel.px / wheel.pathHeight) * 100).toFixed(2)}% of path` +
-            ` (${((wheel.px / wheel.events / wheel.pathHeight) * 100).toFixed(2)}% each)`
-          : 'wheel: none yet'}
-      </output>
+      <div className="dev-readout">
+        <output className="dev-readout-line" data-readout="wheel" aria-hidden="true">
+          {wheel
+            ? `wheel deltaY ${wheel.deltaY.toFixed(1)} ${MODES[wheel.deltaMode] ?? wheel.deltaMode} (mode ${wheel.deltaMode})` +
+              ` · scrolled ${wheel.px.toFixed(0)} px over ${wheel.events} event${wheel.events === 1 ? '' : 's'}` +
+              ` (${(wheel.px / wheel.events).toFixed(0)} px each)` +
+              ` · ${((wheel.px / wheel.pathHeight) * 100).toFixed(2)}% of path` +
+              ` (${((wheel.px / wheel.events / wheel.pathHeight) * 100).toFixed(2)}% each)`
+            : 'wheel: none yet'}
+        </output>
+        <BackdropReadout />
+      </div>
     </>
   );
 }

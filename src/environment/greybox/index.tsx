@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   BackSide,
@@ -11,7 +11,9 @@ import {
   type Fog,
   type GridHelper,
   type Mesh,
+  type ShaderMaterial,
 } from 'three';
+import { sceneProbe } from '../../dev/sceneProbe';
 import { worldOpacity } from '../backdrops';
 import type { EnvironmentModule, EnvironmentProps } from '../contract';
 import { blendZones, createZoneState } from '../zones';
@@ -61,7 +63,8 @@ const DOME_FRAGMENT = /* glsl */ `
 function GreyboxWorld({ pathT, quality }: EnvironmentProps) {
   const low = quality === 'low';
   const state = useMemo(createZoneState, []);
-  // The colour uniforms are the blended colours themselves, so they need no copying.
+  // The starting uniforms. R3F copies each entry into the material's own, so per-frame values are written through
+  // `material`; the colour entries keep pointing at the blended colours themselves, so they need no copying.
   const uniforms = useMemo(
     () => ({
       top: { value: state.skyTop },
@@ -75,18 +78,30 @@ function GreyboxWorld({ pathT, quality }: EnvironmentProps) {
     [state],
   );
   const dome = useRef<Mesh>(null);
+  const material = useRef<ShaderMaterial>(null);
   const grid = useRef<GridHelper>(null);
   const fog = useRef<Fog>(null);
   const ambient = useRef<AmbientLight>(null);
   const sun = useRef<DirectionalLight>(null);
 
+  useEffect(() => {
+    const mesh = dome.current;
+    sceneProbe.dome = mesh;
+    return () => {
+      if (sceneProbe.dome === mesh) sceneProbe.dome = null;
+    };
+  }, []);
+
   useFrame(() => {
     blendZones(pathT.current, quality, state);
-    uniforms.fogNear.value = state.fogNear;
-    uniforms.fogFar.value = state.fogFar;
     // Where a zone has a backdrop video, the dome and grid give way to it; at its own point they aren't drawn.
     const opacity = worldOpacity(pathT.current);
-    uniforms.opacity.value = opacity;
+    const drawn = material.current?.uniforms;
+    if (drawn) {
+      drawn.fogNear.value = state.fogNear;
+      drawn.fogFar.value = state.fogFar;
+      drawn.opacity.value = opacity;
+    }
     if (dome.current) dome.current.visible = opacity > 0;
     if (grid.current) {
       grid.current.visible = opacity > 0;
@@ -115,6 +130,7 @@ function GreyboxWorld({ pathT, quality }: EnvironmentProps) {
         {/* More rings than a sky alone needs: the floor's fog changes quickly near eye level. */}
         <sphereGeometry args={[DOME_RADIUS, low ? 32 : 48, low ? 24 : 48]} />
         <shaderMaterial
+          ref={material}
           side={BackSide}
           depthTest={false}
           depthWrite={false}
