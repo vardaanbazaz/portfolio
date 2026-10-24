@@ -3,6 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
 import { LANDING, SECTION_LINES, SECTION_NOTES, SECTION_TITLES } from '../content/scene';
 import { sceneProbe } from '../dev/sceneProbe';
+import { hasBackdropObject, setBackdropHover } from '../environment/backdropPlayer';
 import { Backdrops, BackdropTracker } from '../environment/Backdrops';
 import { environment, zoneVisuals } from '../environment/registry';
 import { ZoneVisuals } from '../environment/ZoneVisuals';
@@ -11,6 +12,7 @@ import { MARKERS, markerAt, type PlacedMarker } from '../sections/layouts';
 import { appStore, useAppState } from '../store';
 import { firstFrameDrawn } from '../ui/loadingScreen';
 import type { Quality } from '../visuals/shared';
+import { BackdropHit } from './BackdropHit';
 import { CameraRig } from './CameraRig';
 import { pathPos } from './cameraPath';
 import { createFrameState } from './frameState';
@@ -20,8 +22,10 @@ import { OverlayTracker } from './OverlayTracker';
 import { usePanelStacked } from './panelLayout';
 import { PanelLeaderTracker } from './PanelLeaderTracker';
 import { registerCaption, registerLanding } from './overlayRegistry';
+import { RenderGate } from './RenderGate';
 import { SectionAnchor, type SectionHandlers } from './SectionAnchor';
-import { BASE_FOV, DPR_LOW, DPR_RANGE, NARROW_VIEWPORT_PX, PERF_DECLINE_BELOW_FPS } from './tuning';
+import { nextPerf, perfBounds, startPerf } from './quality';
+import { BASE_FOV, DPR_LOW, DPR_RANGE, NARROW_VIEWPORT_PX } from './tuning';
 
 const initialQuality = (): Quality => (window.innerWidth < NARROW_VIEWPORT_PX ? 'low' : 'high');
 
@@ -49,8 +53,9 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
   const { phase, page, item, panel } = useAppState();
   const stacked = usePanelStacked();
   const [startQuality] = useState(initialQuality);
-  const [quality, setQuality] = useState<Quality>(startQuality);
-  const [dpr, setDpr] = useState<number | [number, number]>(DPR_RANGE);
+  const [perf, setPerf] = useState(() => startPerf(startQuality));
+  const { quality } = perf;
+  const dpr = perf.slowed ? DPR_LOW : DPR_RANGE;
   const [hoveredMarker, setHoveredMarker] = useState<PlacedMarker | null>(null);
   const frame = useMemo(createFrameState, []);
   const { World } = environment;
@@ -60,17 +65,18 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
   // The opaque page covers the scene, so stop drawing while it is open. A panel keeps the scene drawing.
   const frameloop = phase === 'open' && !panel ? 'demand' : 'always';
 
+  // Hovering or focusing a marker, or the object standing for it, brightens that object's glow.
+  useEffect(() => setBackdropHover(hoveredMarker?.key ?? null), [hoveredMarker]);
+
   useEffect(() => {
     sceneProbe.pathT = frame.pathT;
     sceneProbe.quality = quality;
     sceneProbe.frameloop = frameloop;
   }, [frame, quality, frameloop]);
 
-  // Drop to low quality on a sustained frame-rate decline and never climb back this session.
-  const onDecline = () => {
-    setQuality('low');
-    setDpr(DPR_LOW);
-  };
+  // Drop to low quality on a sustained frame-rate decline; climb back once it recovers (`nextPerf`).
+  const onDecline = () => setPerf((state) => nextPerf(state, 'decline', startQuality));
+  const onIncline = () => setPerf((state) => nextPerf(state, 'incline', startQuality));
 
   const onFlyInDone = useCallback(() => appStore.dispatch({ type: 'flyInDone' }), []);
   const onFlyOutDone = useCallback(() => appStore.dispatch({ type: 'flyOutDone' }), []);
@@ -93,7 +99,8 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
         }}
       >
         <FirstFrame />
-        <PerformanceMonitor bounds={() => [PERF_DECLINE_BELOW_FPS, Infinity]} onDecline={onDecline} />
+        <PerformanceMonitor bounds={perfBounds} onDecline={onDecline} onIncline={onIncline} />
+        <RenderGate pathT={frame.pathT} />
         <CameraRig
           frame={frame}
           phase={phase}
@@ -121,6 +128,14 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
           />
         ))}
       </Canvas>
+      {MARKERS.filter((placed) => hasBackdropObject(placed.key)).map((placed) => (
+        <BackdropHit
+          key={placed.key}
+          placed={placed}
+          onOpen={onOpen}
+          onHoverChange={(hovered) => setHoveredMarker((cur) => (hovered ? placed : cur === placed ? null : cur))}
+        />
+      ))}
       <div className="landing" ref={registerLanding}>
         <h1 className="landing-name">{LANDING.name}</h1>
         <p className="landing-line" lang="sa">

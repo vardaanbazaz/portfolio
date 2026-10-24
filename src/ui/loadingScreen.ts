@@ -35,7 +35,8 @@ import { UI } from './strings';
  * lifts it; it imports nothing 3D, so the HTML site can use it too.
  *
  * Its progress is real: on the scene site, one step for the scene's code, one for the scene's first frame, one per
- * backdrop image decoded, and one per page and panel chunk fetched. Sound never counts. It lifts once the scene has
+ * image of the landing's backdrop decoded (the other worlds' images load once the visitor is in), and one per page and
+ * panel chunk fetched. Sound never counts. It lifts once the scene has
  * drawn and every image has decoded and every chunk has arrived, or at the limit in
  * `tuning.ts` after the first frame. On a direct page link it lifts as soon as that page has rendered instead.
  *
@@ -360,7 +361,7 @@ function liftIfReady() {
 }
 
 /** The scene's code has loaded. `chunks` is how many page and panel chunks the background fetch will bring, and
- *  `images` how many backdrop images decode; `page` is true on a direct page link, where the screen waits for that
+ *  `images` how many of the landing's backdrop images decode; `page` is true on a direct page link, where the screen waits for that
  *  page instead. */
 export function sceneCodeLoaded(chunks: number, images: number, page: boolean) {
   total = chunks + images + 2;

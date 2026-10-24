@@ -11,6 +11,7 @@ import {
   expectExploring,
   gate,
   holdChunks,
+  marker,
   scrollToSection,
   test,
   waitForScene,
@@ -152,7 +153,9 @@ test('the motion stops on the way to About, where the landing has no weight, and
   await scrollToSection(page, 'about');
   await expect.poll(() => motion(page)).toBe('stopped');
   await expect(layer(page)).toHaveCSS('visibility', 'hidden');
-  // Nothing is written to the images while it is stopped.
+  // Leaving the crossing on the way in poses the layer once, at rest as its weight has it after; from then on nothing
+  // is written to the images while it is stopped.
+  await expect.poll(() => layer(page).evaluate((el) => (el as HTMLElement).dataset.crossing !== undefined)).toBe(false);
   const still = await images(page).evaluateAll((els) => els.map((el) => (el as HTMLElement).style.transform));
   await page.waitForTimeout(1_000);
   expect(await images(page).evaluateAll((els) => els.map((el) => (el as HTMLElement).style.transform))).toEqual(still);
@@ -344,18 +347,21 @@ test.describe("nothing of another zone over the landing's backdrop", () => {
     await expectExploring(page);
   });
 
-  test('halfway to About, the About box is partly drawn', async ({ page }) => {
+  test('halfway to About, the About box is not drawn: the grove and its stone stand in for it', async ({ page }) => {
     await page.goto('/');
     await waitForScene(page);
     await page.evaluate((t) => window.scrollTo(0, Math.round(t * (document.documentElement.scrollHeight - innerHeight))), SECTION_T.about / 2);
-    await expect.poll(() => drawn(page, 'about')).toBeGreaterThan(0.2);
-    expect(await drawn(page, 'about')).toBeLessThan(0.8);
+    await expect.poll(() => page.locator('.backdrop-bloom').evaluate((el) => Number((el as HTMLElement).style.opacity))).toBeGreaterThan(0.5);
+    expect(await drawn(page, 'about')).toBe(0);
   });
 
-  test('in the grey zones every section in range is drawn in full, and markers show', async ({ page }) => {
+  test('at About the grey box is not drawn but its marker shows; in the grey zones every section in range is drawn in full', async ({ page }) => {
     await page.goto('/');
     await waitForScene(page);
-    for (const id of ['about', 'projects', 'experience'] as const) {
+    await scrollToSection(page, 'about');
+    await expect(marker(page, 'About')).toBeVisible();
+    expect(await drawn(page, 'about')).toBe(0);
+    for (const id of ['projects', 'experience'] as const) {
       await scrollToSection(page, id);
       await expect.poll(() => drawn(page, id)).toBe(1);
       await expect(page.locator('button.marker:visible').first()).toBeVisible();

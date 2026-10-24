@@ -28,11 +28,14 @@ import {
   test,
 } from './fixtures';
 
-/** Backdrop images: the landing's base and ground layers (`BACKDROPS` in `src/environment/backdrops.ts`, which
- *  imports media files Playwright can't load). */
+/** The backdrop images the loading screen waits for: the landing's base and ground layers only (`FIRST_BACKDROP` in
+ *  `src/environment/backdrops.ts`, which imports media files Playwright can't load). */
 const IMAGES = ['landing-base', 'landing-ground'];
 
-/** Every step the scene site counts: its code, its first frame, each backdrop image, and each page and panel chunk. */
+/** Every other world's images, which load only once the visitor is in: the About grove and its stone's masks. */
+const LATER_IMAGES = /\/about-[\w-]+\.webp(\?.*)?$/;
+
+/** Every step the scene site counts: its code, its first frame, each landing image, and each page and panel chunk. */
 const TOTAL_STEPS = 2 + IMAGES.length + PAGE_CHUNKS.length + PANEL_CHUNKS.length;
 
 /** The background fetch takes the chunks in turn and the panels come last, so holding the last one back leaves every
@@ -211,7 +214,9 @@ test('the loading screen waits for both landing images to decode', async ({ page
   const { gateAt } = await recorded(page);
   const decodes = await page.evaluate(() => (window as unknown as { decodes: { src: string; at: number }[] }).decodes);
   for (const name of IMAGES) {
-    const first = decodes.find(({ src }) => new URL(src).pathname.includes(`/${name}-`));
+    // The name, then only the build's hash.
+    const file = new RegExp(`/${name}-[\\w-]{8}\\.webp$`);
+    const first = decodes.find(({ src }) => file.test(new URL(src).pathname));
     expect(first, `${name} decoded`).toBeDefined();
     expect(first!.at, `${name} decoded before the gate appeared`).toBeLessThanOrEqual(gateAt);
   }
@@ -219,6 +224,31 @@ test('the loading screen waits for both landing images to decode', async ({ page
   const images = page.locator('.backdrop[data-zone="landing"] img.backdrop-image');
   await expect(images).toHaveCount(2);
   for (let i = 0; i < 2; i++) await expect(images.nth(i)).toHaveJSProperty('complete', true);
+});
+
+test("the loading screen waits only for the landing's images: the other worlds' load after Enter", async ({ page }) => {
+  await page.addInitScript(RECORD_LOADING);
+  const requested: { url: string; afterEnter: boolean }[] = [];
+  let entered = false;
+  // The grove's picture is held back for good: the gate must appear without it.
+  await page.route(/\/about-base-[\w-]+\.webp(\?.*)?$/, () => undefined);
+  page.on('request', (request) => {
+    if (LATER_IMAGES.test(request.url())) requested.push({ url: request.url(), afterEnter: entered });
+  });
+  await page.goto('/');
+  await expect(gate(page)).toBeVisible({ timeout: 20_000 });
+  await expect(loadingScreen(page)).toHaveAttribute('data-total', String(TOTAL_STEPS));
+  // Well before the limit: it waited for nothing of the grove's.
+  const { drawnAt, gateAt } = await recorded(page);
+  expect(gateAt - drawnAt).toBeLessThan(LOADING_SCREEN_LIMIT_SECONDS * 1000);
+  expect(requested).toEqual([]);
+  entered = true;
+  await quietButton(page).click();
+  await expect(loadingScreen(page)).toHaveCount(0);
+  // In path order: the grove's picture first.
+  await expect.poll(() => requested.length).toBeGreaterThan(0);
+  expect(requested[0].url).toMatch(/\/about-base-/);
+  expect(requested.every((r) => r.afterEnter)).toBe(true);
 });
 
 test('the entry gate appears at the limit if a chunk never arrives, and that panel shows its own loading line', async ({ page }) => {

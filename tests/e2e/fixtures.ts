@@ -121,8 +121,18 @@ export async function passGate(page: Page, { sound = false }: { sound?: boolean 
   await expect(loadingScreen(page)).toHaveCount(0);
 }
 
-/** The scene's canvas has loaded and drawn, the visitor has passed the entry gate, and the loading screen is gone. */
-export async function waitForScene(page: Page, options: { sound?: boolean } = {}) {
+/** Every world's backdrop has its images in and has faded in. The landing's load before the gate; the others after
+ *  it, in the background. */
+export async function waitForWorlds(page: Page) {
+  const worlds = page.locator('.backdrop');
+  await expect(worlds.first()).toBeAttached();
+  await expect.poll(async () => (await worlds.count()) - (await page.locator('.backdrop[data-ready]').count()), { timeout: 20_000 }).toBe(0);
+}
+
+/** The scene's canvas has loaded and drawn, the visitor has passed the entry gate, and the loading screen is gone;
+ *  unless `worlds` is false, every world's backdrop has come in too. */
+export async function waitForScene(page: Page, { worlds = true, ...options }: { sound?: boolean; worlds?: boolean } = {}) {
   await expect(page.locator('.scene canvas')).toBeAttached({ timeout: 20_000 });
   await passGate(page, options);
+  if (worlds) await waitForWorlds(page);
 }

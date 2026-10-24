@@ -128,8 +128,12 @@ export const NARROW_VIEWPORT_PX = 768;
 export const DPR_RANGE: [min: number, max: number] = [1, 1.5];
 export const DPR_LOW = 1;
 
-/** Sustained average frame rate below this drops quality to 'low' for the rest of the session. */
+/** A sustained average frame rate below this drops quality to 'low'; one at or above `PERF_RECOVER_FPS` (or the
+ *  screen's refresh rate less 5, if that is lower) brings back the quality the visit started at. After
+ *  `PERF_MAX_DROPS` drops quality stays low for the rest of the session, so it never flips back and forth for long. */
 export const PERF_DECLINE_BELOW_FPS = 45;
+export const PERF_RECOVER_FPS = 55;
+export const PERF_MAX_DROPS = 3;
 
 /** Seconds for the camera to fly from the path to a marker's inspect pose (and back). */
 export const FLY_SECONDS = 0.8;
@@ -225,3 +229,87 @@ export const AMBIENT_FOLLOW_SECONDS = 0.25;
 
 /** Time constant, in seconds, of the ambient fade as a full page opens or closes, and as mute is toggled. */
 export const AMBIENT_FADE_SECONDS = 0.6;
+
+/** Crossing between two neighbouring zones that both have a backdrop: a dawn bloom, a radial light from warm white at
+ *  its centre through soft amber to transparent, grows from the first world's light (the landing's dawn glow) and
+ *  travels to the second's (the grove's sun), and the two pictures crossfade under it. Its opacity at its centre at
+ *  the midpoint; 0 at both stops. */
+export const BLOOM_PEAK = 0.6;
+
+/** The bloom's radius as a share of the view's width: at the midpoint, and at either end. */
+export const BLOOM_RADIUS = { mid: 0.9, end: 0.12 } as const;
+
+/** The bloom's light from its centre (0) to its radius (1): where each stop is, its colour, and its alpha (times the
+ *  bloom's opacity). Falling steeply, so the light at the view's edges stays at `BLOOM_EDGE_MAX` or less and the
+ *  silhouettes stay visible through it. */
+export const BLOOM_STOPS: readonly (readonly [at: number, rgb: string, alpha: number])[] = [
+  [0, '255 246 228', 1],
+  [0.1, '255 228 182', 0.62],
+  [0.24, '255 208 142', 0.32],
+  [0.45, '255 192 118', 0.14],
+  [0.7, '255 184 108', 0.05],
+  [1, '255 184 108', 0],
+];
+
+/** The most the bloom may add anywhere on the view's edges. */
+export const BLOOM_EDGE_MAX = 0.2;
+
+/** The bloom is drawn once into a square this many px wide and scaled to its radius, so a crossing only moves and
+ *  fades it, never draws it again. */
+export const BLOOM_DRAWN_PX = 256;
+
+/** Half the width, as a share of the scroll between the two zones, of the window around the midpoint in which one
+ *  picture crossfades into the other, under the bloom near its height. */
+export const CROSSING_SWAP_HALF_WIDTH = 0.15;
+
+/** A backdrop's effects (stars, mist, shimmer, motes) aren't drawn at all while its weight is below this. */
+export const EFFECTS_MIN_WEIGHT = 0.05;
+
+/** Seconds over which a world whose images arrived after the loading screen fades in, from how the path looked
+ *  before it had a backdrop. */
+export const BACKDROP_READY_FADE_SECONDS = 1.2;
+
+/** A backdrop object's light: its glow image (warm gold, only on the pixels that glow: the stone's spiral) and a soft
+ *  round bloom, added over the picture together, breathing between the ends of this opacity range over this many
+ *  seconds. The spiral is painted bright already, so added light soon clips to a flat yellow-white: at 0.16, 1.5% of
+ *  the spiral's pixels clip in both red and green (5.6% at 0.2, 24.5% at 0.3). With reduced motion it holds at
+ *  `OBJECT_GLOW_STILL_OPACITY`. */
+export const OBJECT_GLOW_PERIOD_SECONDS = 4;
+export const OBJECT_GLOW_OPACITY: [min: number, max: number] = [0.06, 0.16];
+export const OBJECT_GLOW_STILL_OPACITY = 0.1;
+/** Hovering or focusing the object or its marker brightens its light to this, over `OBJECT_GLOW_HOVER_SECONDS`. */
+export const OBJECT_GLOW_HOVER_OPACITY = 0.45;
+export const OBJECT_GLOW_HOVER_SECONDS = 0.3;
+/** The bloom's own opacity at its centre, under the breathing above. */
+export const OBJECT_BLOOM_OPACITY = 0.5;
+
+/** A marker pinned to a backdrop object sits this many px above the object's top. */
+export const OBJECT_MARKER_GAP_PX = 10;
+
+/** A marker never comes closer than this to either side of the view, in px. */
+export const MARKER_SIDE_GUTTER_PX = 16;
+
+/** The area that takes a press on a backdrop object is at least this many px each way: a comfortable touch target. */
+export const OBJECT_HIT_MIN_PX = 44;
+
+/** Light motes: soft warm points drifting slowly up and sideways in the light, brightest toward the sun's side. How
+ *  many, their size range in px, their opacity range, the seconds of one drift, how far one rises and strays sideways
+ *  over it in px, and their colour. Fixed by the seed. */
+export const MOTE_COUNT = 40;
+export const MOTE_SIZE_PX: [min: number, max: number] = [2, 6];
+export const MOTE_OPACITY: [min: number, max: number] = [0.25, 0.85];
+export const MOTE_PERIOD_SECONDS: [min: number, max: number] = [14, 28];
+export const MOTE_RISE_PX: [min: number, max: number] = [40, 140];
+export const MOTE_DRIFT_PX = 50;
+export const MOTE_COLOR = '#ffe7b0';
+export const MOTE_SEED = 1031;
+/** Motes stay above this fraction of the view's height from the top (none in the foreground ferns and path), and
+ *  bunch toward the sun's column: a mote's distance from it, as a fraction of the view's width, is a uniform draw
+ *  raised to this power. */
+export const MOTE_LOWEST = 0.82;
+export const MOTE_SUN_BIAS = 1.6;
+
+/** Light shimmer: the light falling from the upper left brightens and dims very slightly, an additive gradient whose
+ *  opacity moves between the ends of this range over this many seconds. Barely noticeable. */
+export const SHIMMER_OPACITY: [min: number, max: number] = [0, 0.1];
+export const SHIMMER_PERIOD_SECONDS = 8;

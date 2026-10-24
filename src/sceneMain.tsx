@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import type { Root } from 'react-dom/client';
 import { App } from './App';
-import { BACKDROP_IMAGE_COUNT, listenInput, listenVisibility, preloadImages, releaseBackdrops } from './environment/backdropPlayer';
+import { BACKDROP_IMAGE_COUNT, listenInput, listenVisibility, loadWorlds, preloadImages, releaseBackdrops } from './environment/backdropPlayer';
 import { preloadAll, SCENE_CHUNK_LOADS } from './preload';
 import { pageForPath, sectionForHash } from './routes';
 import { SECTION_T } from './scene/cameraPath';
@@ -20,10 +20,13 @@ export function mountScene(root: Root, onContextLost: () => void, pressedEarly =
   const bootPage = pageForPath(window.location.pathname);
   // The loading screen's first step; on a direct page link it waits for that page rather than the whole scene.
   sceneCodeLoaded(SCENE_CHUNK_LOADS.length, BACKDROP_IMAGE_COUNT, bootPage !== null);
-  // Each backdrop image is a step, done once it has decoded. Its sound loads only after a press, so it never holds
-  // the screen up.
+  // Each of the landing's images is a step, done once it has decoded. Its sound loads only after a press, so it never
+  // holds the screen up. Every other world's images load once the visitor is in, one world at a time in path order.
   preloadImages(chunkArrived);
-  onLifted(releaseBackdrops);
+  onLifted(() => {
+    releaseBackdrops();
+    void loadWorlds();
+  });
   // Every page and panel, fetched from now on in the background.
   preloadAll(chunkArrived);
   listenVisibility(document);
