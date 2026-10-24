@@ -2,18 +2,21 @@ import { content } from '../content/pages/about';
 import { PAGE_LABELS } from '../content/scene';
 import { VERSE } from '../content/verse';
 import { UI } from '../ui/strings';
+import { Canopy, CANOPY_STYLE, SpiralDivider } from './Canopy';
 import type { PageProps } from './contract';
 import { LinkList } from './LinkList';
 
 export default function AboutPage({ headingId }: PageProps) {
   const { education } = content;
   return (
-    <article>
+    <article className="about" style={CANOPY_STYLE}>
+      <Canopy />
       <h1 id={headingId} tabIndex={-1}>
         {PAGE_LABELS.about}
       </h1>
 
-      <figure className="verse">
+      <SpiralDivider />
+      <figure className="verse about-verse">
         <blockquote lang="sa">
           <p className="verse-line">
             {VERSE.lines[0]}
@@ -27,6 +30,8 @@ export default function AboutPage({ headingId }: PageProps) {
           </p>
         </figcaption>
       </figure>
+
+      <SpiralDivider />
 
       <section>
         <h2>{UI.education}</h2>
@@ -42,10 +47,14 @@ export default function AboutPage({ headingId }: PageProps) {
         </ul>
       </section>
 
+      <SpiralDivider />
+
       <section>
         <h2>{UI.location}</h2>
         <p>{content.location}</p>
       </section>
+
+      <SpiralDivider />
 
       <section>
         <h2>{UI.links}</h2>

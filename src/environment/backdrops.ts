@@ -32,6 +32,7 @@ import {
 } from '../scene/tuning';
 import type { MarkerKey, SectionId } from '../sections/contract';
 import { MARKERS } from '../sections/layouts';
+import { seeded } from '../visuals/seeded';
 import aboutBase from './assets/about-base.webp';
 import aboutStoneGlow from './assets/about-stone-glow.webp';
 import aboutStoneOutline from './assets/about-stone-outline.webp';
@@ -503,17 +504,6 @@ export interface Star {
   twinkles: boolean;
   period: number;
   phase: number;
-}
-
-/** A small seeded generator (mulberry32): the same seed gives the same numbers on every load. */
-function seeded(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let r = Math.imul(a ^ (a >>> 15), 1 | a);
-    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 /** The share of stars kept at a column `x`, `glowX` being the glow's centre column: none within

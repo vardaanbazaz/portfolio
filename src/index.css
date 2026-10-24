@@ -934,3 +934,183 @@ h2:focus-visible,
   font-weight: 500;
   text-wrap: balance;
 }
+/* About: the quiet shade under the banyan's canopy. Every colour, opacity and timing comes from `src/pages/canopy.ts`
+   as a custom property on `.about`. */
+.about {
+  color: var(--about-text);
+  line-height: 1.7;
+}
+
+/* On the HTML site the page is an ordinary block; this makes it a stacking context, so the canopy (z-index -1) paints
+   over the page's own background and under its text, as it does inside the scene's fixed page. */
+.page:has(.canopy) {
+  isolation: isolate;
+}
+
+/* Fixed to the view while the page scrolls over it. Lighter at the top, as if the light came from above. */
+.canopy {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background: linear-gradient(to bottom, var(--canopy-top), var(--canopy-bottom));
+  pointer-events: none;
+}
+
+/* Light through the leaves: soft lobes of gold, already soft at the edges, centred on its point. Only transform and
+   opacity change. */
+.canopy-patch {
+  position: absolute;
+  translate: -50% -50%;
+  opacity: var(--patch-rest);
+  will-change: transform, opacity;
+  animation: canopy-dapple ease-in-out infinite;
+}
+
+/* Rests, brightens, strays to the far end of its drift, dims, and comes back to rest. */
+@keyframes canopy-dapple {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: var(--patch-rest);
+  }
+
+  25% {
+    opacity: var(--patch-bright);
+  }
+
+  50% {
+    transform: translate3d(var(--patch-dx), var(--patch-dy), 0);
+  }
+
+  75% {
+    opacity: var(--patch-dim);
+  }
+}
+
+.canopy-motes {
+  position: absolute;
+  inset: 0;
+}
+
+/* Stepping under the canopy: the grove's gold light over the shade, fading out once as the page opens. */
+.canopy-wash {
+  position: absolute;
+  inset: 0;
+  background: var(--canopy-wash);
+  opacity: 0;
+  animation: canopy-wash var(--canopy-wash-duration) ease-out;
+}
+
+@keyframes canopy-wash {
+  from {
+    opacity: var(--canopy-wash-opacity);
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+.about h1,
+.about h2,
+.about h3 {
+  color: var(--about-heading);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.about h2 {
+  margin: 0 0 16px;
+}
+
+.about h3 {
+  margin: 32px 0 12px;
+}
+
+.about p {
+  margin: 0 0 12px;
+}
+
+.about ul:not(.link-list) {
+  margin: 0;
+  padding-left: 1.25em;
+}
+
+.about ul:not(.link-list) li + li {
+  margin-top: 6px;
+}
+
+.about .muted,
+.page .about a {
+  color: var(--about-text);
+}
+
+/* A thin line with the spiral at its centre. */
+.spiral-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 48px auto;
+  max-width: 320px;
+  color: var(--divider-color);
+  opacity: var(--divider-opacity);
+}
+
+.spiral-divider::before,
+.spiral-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: currentColor;
+}
+
+.spiral-divider svg {
+  flex: none;
+  display: block;
+}
+
+/* The verse, set apart: the Devanagari larger and centred, its translation and source beneath. */
+.verse.about-verse {
+  margin: 0 auto;
+  max-width: 34em;
+  text-align: center;
+}
+
+.about-verse .verse-line {
+  margin: 0;
+  /* 22px on a 360px-wide screen up to 30px at 1920px. */
+  font-size: clamp(1.375rem, 1.2596rem + 0.5128vw, 1.875rem);
+  line-height: 1.8;
+  color: var(--about-text);
+}
+
+.about .about-verse .verse-gloss {
+  margin: 20px 0 0;
+  color: var(--about-text);
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  text-wrap: balance;
+}
+
+.about-verse .verse-gloss cite {
+  margin-top: 10px;
+  color: var(--about-source);
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+}
+
+/* With reduced motion nothing moves: the patches hold still at their resting strength, there are no motes, and the
+   page opens straight into the shade. */
+@media (prefers-reduced-motion: reduce) {
+  .canopy-patch {
+    animation: none;
+    transform: none;
+    opacity: var(--patch-rest);
+  }
+
+  .canopy-motes,
+  .canopy-wash {
+    display: none;
+  }
+}
