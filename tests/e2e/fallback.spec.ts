@@ -82,7 +82,7 @@ test('the scene build does contain the 3D code this check looks for', async ({ b
   const page = await context.newPage();
   const scripts = collectScripts(page);
   await page.goto('/');
-  await expect(page.locator('.scene canvas')).toBeAttached({ timeout: 20_000 });
+  await expect(page.locator('.scene canvas:not(.backdrop-rain)')).toBeAttached({ timeout: 20_000 });
   expect(has3dCode(scripts)).toBe(true);
   await context.close();
 });

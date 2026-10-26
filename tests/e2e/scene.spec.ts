@@ -9,6 +9,7 @@ import {
   expect,
   expectExploring,
   marker,
+  openMarker,
   scrollToSection,
   test,
   waitForScene,
@@ -51,7 +52,7 @@ const PROJECTS = [
 test('each project box opens its own page, and Back returns to the path', async ({ page }) => {
   await scrollToSection(page, 'projects');
   for (const [label, id] of PROJECTS) {
-    await marker(page, label).click();
+    await openMarker(page, label);
     await expect(page).toHaveURL(PAGE_PATHS[id]);
     const main = page.getByRole('main');
     await expect(main.getByRole('heading', { level: 1 })).toHaveText(label);
@@ -110,14 +111,14 @@ for (const [label, section] of PANELS) {
 
 test('opening and closing a page keeps the scroll position and the same canvas', async ({ page }) => {
   await scrollToSection(page, 'projects');
-  const canvas = await page.locator('.scene canvas').elementHandle();
+  const canvas = await page.locator('.scene canvas:not(.backdrop-rain)').elementHandle();
   const scrollY = await page.evaluate(() => window.scrollY);
-  await marker(page, 'KanbanLight').click();
+  await openMarker(page, 'KanbanLight');
   await expect(page.getByRole('main')).toBeVisible();
   await page.goBack();
   await expectExploring(page);
   expect(await page.evaluate(() => window.scrollY)).toBe(scrollY);
-  expect(await page.evaluate((c) => c === document.querySelector('.scene canvas'), canvas)).toBe(true);
+  expect(await page.evaluate((c) => c === document.querySelector('.scene canvas:not(.backdrop-rain)'), canvas)).toBe(true);
 });
 
 test('closing a panel returns focus to its marker', async ({ page }) => {
@@ -153,7 +154,7 @@ test('after Enter without sound, no press creates an AudioContext until Mute is 
     return (await page.evaluate(() => window.scrollY)) === before && before > 0;
   }).toBe(true);
   await scrollToSection(page, 'projects');
-  await marker(page, 'DataVista').click();
+  await openMarker(page, 'DataVista');
   await expect(page.getByRole('main')).toBeVisible();
   await page.keyboard.press('Escape');
   await expectExploring(page);
@@ -165,7 +166,7 @@ test('after Enter without sound, no press creates an AudioContext until Mute is 
   await mute.click();
   await expect(mute).toHaveAttribute('aria-pressed', 'false');
   expect(await audioContexts(page)).toBe(0);
-  await marker(page, 'DataVista').click();
+  await openMarker(page, 'DataVista');
   await expect(page.getByRole('main')).toBeVisible();
   expect(await audioContexts(page)).toBe(1);
 });
@@ -176,7 +177,7 @@ test('no AudioContext is ever created when muted was saved', async ({ page }) =>
   await page.goto('/');
   await waitForScene(page);
   await scrollToSection(page, 'projects');
-  await marker(page, 'DataVista').click();
+  await openMarker(page, 'DataVista');
   await expect(page.getByRole('main')).toBeVisible();
   await page.keyboard.press('Escape');
   await expectExploring(page);
@@ -188,7 +189,7 @@ test('a lost WebGL context switches the visit to the HTML site', async ({ page }
   await page.goto('/');
   await waitForScene(page);
   await scrollToSection(page, 'experience');
-  await page.locator('.scene canvas').evaluate((canvas: HTMLCanvasElement) => {
+  await page.locator('.scene canvas:not(.backdrop-rain)').evaluate((canvas: HTMLCanvasElement) => {
     const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
     gl!.getExtension('WEBGL_lose_context')!.loseContext();
   });

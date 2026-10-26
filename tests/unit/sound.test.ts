@@ -92,8 +92,11 @@ describe('AudioContext lifecycle', () => {
         onended: null,
       };
     }
+    filters: { type: string; frequency: { value: number }; Q: { value: number } }[] = [];
     createBiquadFilter() {
-      return { type: '', frequency: param(), connect: chain };
+      const node = { type: '', frequency: param(), Q: param(), connect: chain };
+      this.filters.push(node);
+      return node;
     }
     gains: ReturnType<typeof param>[] = [];
     createGain() {
@@ -311,6 +314,20 @@ describe('AudioContext lifecycle', () => {
       expect(ctx.beds[0]).toMatchObject({ loop: true, started: true });
       // The bus, then the bed's own gain, which rises to the asked level.
       expect(ctx.gains[1].targets).toEqual([0.1]);
+    });
+
+    it('plays a bed with filters through a Butterworth high-pass and low-pass, and one without through none', async () => {
+      const sound = await load();
+      sound.ambient('/rain.m4a', 0.1, 0.25, { highpassHz: 120, lowpassHz: 8000 });
+      sound.ambient('/bed.m4a', 0.1, 0.25);
+      press();
+      await settle();
+      const filters = contexts[0].filters.map(({ type, frequency, Q }) => ({ type, hz: frequency.value, q: Q.value }));
+      // Web Audio reads these filters' Q in dB: 1 / sqrt 2 is -3.01 dB.
+      expect(filters).toEqual([
+        { type: 'highpass', hz: 120, q: -3.0103 },
+        { type: 'lowpass', hz: 8000, q: -3.0103 },
+      ]);
     });
 
     it('follows later level changes without fetching again', async () => {

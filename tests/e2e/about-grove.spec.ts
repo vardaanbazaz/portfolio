@@ -27,7 +27,7 @@ async function readout(page: Page) {
 }
 
 /** What the canvas says it draws of a section: 0 while hidden, else its opacity. */
-const drawn = async (page: Page, id: string) => Number(await page.locator('.scene canvas').getAttribute(`data-section-${id}`));
+const drawn = async (page: Page, id: string) => Number(await page.locator('.scene canvas:not(.backdrop-rain)').getAttribute(`data-section-${id}`));
 
 /** The stone's masks as the page has them: each image's pixels, read in the page. The outline is named on the stone's
  *  box, since nothing in the page shows it. */
@@ -167,7 +167,7 @@ test('the area that takes presses on the stone is hidden from screen readers and
   await page.goto('/');
   await waitForScene(page);
   await scrollToSection(page, 'about');
-  const hit = page.locator('.backdrop-hit');
+  const hit = page.locator('.backdrop-hit[data-marker="about"]');
   await expect(hit).toHaveAttribute('aria-hidden', 'true');
   await expect(hit).not.toHaveAttribute('tabindex');
   for (let i = 0; i < 12; i++) {
@@ -394,7 +394,7 @@ test('during the crossing at most three full-view layers change at once, none wi
       expect(filter, `${k} at u ${u}`).toBe('none');
       if (changing.includes(k)) expect(mask, `${k} at u ${u}`).toBe('none');
     }
-    await expect(page.locator('.scene canvas')).toHaveCSS('visibility', 'hidden');
+    await expect(page.locator('.scene canvas:not(.backdrop-rain)')).toHaveCSS('visibility', 'hidden');
   }
 });
 
@@ -497,7 +497,7 @@ test('a world not yet decoded when the visitor reaches it shows as before it had
   await expect.poll(() => drawn(page, 'about')).toBe(1);
   await expect(aboutMarker(page)).toBeVisible();
   await expect(grove(page)).toHaveCSS('visibility', 'hidden');
-  await expect(page.locator('.backdrop-hit')).toHaveCSS('visibility', 'hidden');
+  await expect(page.locator('.backdrop-hit[data-marker="about"]')).toHaveCSS('visibility', 'hidden');
   expect(held.length).toBeGreaterThan(0);
   for (const route of held.splice(0)) await route.continue();
   await expect(grove(page)).toHaveAttribute('data-ready', '', { timeout: 15_000 });

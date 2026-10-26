@@ -4,6 +4,9 @@ import {
   BACKDROP_FADE_IN_SECONDS,
   BLOOM_DRAWN_PX,
   BLOOM_STOPS,
+  BUILDING_LIGHT_IN_SECONDS,
+  BUILDING_LIGHT_OUT_SECONDS,
+  DUSK_VEIL_COLOR,
   MIST_HEIGHT,
   MIST_LOOP_SECONDS,
   MIST_OPACITY,
@@ -14,17 +17,31 @@ import {
   OBJECT_GLOW_OPACITY,
   OBJECT_GLOW_PERIOD_SECONDS,
   OBJECT_GLOW_STILL_OPACITY,
+  RAIN_FADE_SECONDS,
   SHIMMER_OPACITY,
   SHIMMER_PERIOD_SECONDS,
+  SUNSET_GRADE,
 } from '../scene/tuning';
-import type { FrameValue } from '../visuals/shared';
+import type { FrameValue, Quality } from '../visuals/shared';
 import mist from './assets/mist.webp';
-import { followPath, registerBackdrop, registerBackdropObject, registerBloom, setPageOpen } from './backdropPlayer';
+import {
+  followPath,
+  registerBackdrop,
+  registerBackdropObject,
+  registerBackdropPlane,
+  registerBloom,
+  registerLights,
+  registerNightfall,
+  registerRain,
+  setPageOpen,
+  setRainQuality,
+} from './backdropPlayer';
+import { CityDetails } from './CityDetails';
 import { BACKDROPS, FIRST_BACKDROP, moteField, starField, type BackdropObject, type Star, type ZoneBackdrop } from './backdrops';
 
 /** Draws the stars that don't twinkle into an image the size of `el`, returned as a data URL: drawn on an off-page
- *  canvas, so the scene's canvas stays the page's only one, and encoded at once, so nothing is requested later. Each
- *  star is a single device pixel or more, snapped to the pixel grid so it stays crisp. */
+ *  canvas, so it adds none to the page (the scene's and the rain's are its only two), and encoded at once, so nothing
+ *  is requested later. Each star is a single device pixel or more, snapped to the pixel grid so it stays crisp. */
 function drawStill(el: HTMLElement, stars: readonly Star[]): string {
   const ratio = window.devicePixelRatio || 1;
   const canvas = document.createElement('canvas');
@@ -128,59 +145,146 @@ function Motes({ sunX }: { sunX: number }) {
   );
 }
 
-/** An image's source: the first world's at once; every other world's waits in `data-src` until the player loads that
- *  world, after the visitor has entered. */
-const source = (zone: ZoneBackdrop['zone'], src: string) => (zone === FIRST_BACKDROP.zone ? { src } : { 'data-src': src });
+/** An image's source: the first world's at once; every other world's waits in `data-src` (and `data-srcset`) until
+ *  the player loads that world, after the visitor has entered. */
+const source = (zone: ZoneBackdrop['zone'], src: string, srcSet?: string) =>
+  zone === FIRST_BACKDROP.zone ? { src, srcSet } : { 'data-src': src, 'data-srcset': srcSet };
+
+/** A layer image's set of sources, when it has a smaller copy: the cover crop draws it at least the view's width, and
+ *  at least the view's height times the images' aspect. */
+function layerSources({ src, small }: ZoneBackdrop['layers'][number], { width, height }: ZoneBackdrop['size']) {
+  if (!small) return { srcSet: undefined, sizes: undefined };
+  return { srcSet: `${small.src} ${small.width}w, ${src} ${width}w`, sizes: `max(100vw, ${((width / height) * 100).toFixed(1)}vh)` };
+}
 
 /** The bloom's light from its centre out, drawn once. */
 const BLOOM_GRADIENT = `radial-gradient(closest-side, ${BLOOM_STOPS.map(([at, rgb, alpha]) => `rgb(${rgb} / ${alpha}) ${at * 100}%`).join(', ')})`;
 
-/** One object painted in the backdrop: on a plane the player poses as the object's layer, a box over its rect that
- *  holds its light (its glow image and a soft bloom, added over the picture, breathing), with a brighter copy that
- *  fades in on hover. The picture itself already shows the object. */
+/** One object painted in the backdrop: a box over its rect, on its backdrop's plane, that holds its light. The picture
+ *  itself already shows the object.
+ *  - An object whose light shows at rest (the stone's spiral) has its glow image and a soft bloom, added over the
+ *    picture, breathing, and a brighter copy that fades in on hover.
+ *  - A building's light shows only on hover and focus: its image is the building brightened (its lit pixels most) with
+ *    a glow round it, made brighter than the painting at every pixel, drawn with normal blending and faded in by
+ *    opacity alone, over its own box (`glow.box`, past its rect). */
 function BackdropObjectView({ zone, index, object }: { zone: ZoneBackdrop['zone']; index: number; object: BackdropObject }) {
-  const plane = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    registerBackdropObject(zone, index, { plane: plane.current, box: box.current });
-    return () => registerBackdropObject(zone, index, { plane: null, box: null });
+    registerBackdropObject(zone, index, box.current);
+    return () => registerBackdropObject(zone, index, null);
   }, [zone, index]);
 
-  const { glow } = object;
+  const { glow, rect } = object;
   const bloom = glow?.bloom;
-  const style = bloom && {
+  const building = glow?.rest === false;
+  // The light's own box, in shares of the object's rect.
+  const at = glow?.box ?? rect;
+  const style = glow && {
     '--glow-min': OBJECT_GLOW_OPACITY[0],
     '--glow-max': OBJECT_GLOW_OPACITY[1],
     '--glow-still': OBJECT_GLOW_STILL_OPACITY,
-    '--glow-hover': OBJECT_GLOW_HOVER_OPACITY,
+    '--glow-hover': building ? 1 : OBJECT_GLOW_HOVER_OPACITY,
     '--glow-hover-fade': `${OBJECT_GLOW_HOVER_SECONDS}s`,
+    '--light-in': `${BUILDING_LIGHT_IN_SECONDS}s`,
+    '--light-out': `${BUILDING_LIGHT_OUT_SECONDS}s`,
+    '--light-left': `${(((at.x - rect.x) / rect.width) * 100).toFixed(4)}%`,
+    '--light-top': `${(((at.y - rect.y) / rect.height) * 100).toFixed(4)}%`,
+    '--light-width': `${((at.width / rect.width) * 100).toFixed(4)}%`,
+    '--light-height': `${((at.height / rect.height) * 100).toFixed(4)}%`,
     // One way of an alternating animation is half a period.
     '--glow-breath': `${OBJECT_GLOW_PERIOD_SECONDS / 2}s`,
-    '--bloom-opacity': OBJECT_BLOOM_OPACITY,
-    '--bloom-left': `${((bloom.x - bloom.rx) * 100).toFixed(3)}%`,
-    '--bloom-top': `${((bloom.y - bloom.ry) * 100).toFixed(3)}%`,
-    '--bloom-width': `${(bloom.rx * 200).toFixed(3)}%`,
-    '--bloom-height': `${(bloom.ry * 200).toFixed(3)}%`,
+    ...(bloom && {
+      '--bloom-opacity': OBJECT_BLOOM_OPACITY,
+      '--bloom-left': `${((bloom.x - bloom.rx) * 100).toFixed(3)}%`,
+      '--bloom-top': `${((bloom.y - bloom.ry) * 100).toFixed(3)}%`,
+      '--bloom-width': `${(bloom.rx * 200).toFixed(3)}%`,
+      '--bloom-height': `${(bloom.ry * 200).toFixed(3)}%`,
+    }),
   } as CSSProperties;
   const light = (hover: boolean) =>
     glow && (
       <div className={hover ? 'backdrop-object-light backdrop-object-light-hover' : 'backdrop-object-light'}>
-        <div className="backdrop-object-bloom" />
+        {bloom && <div className="backdrop-object-bloom" />}
         <img className="backdrop-object-glow" {...source(zone, glow.src)} alt="" decoding="async" draggable={false} />
       </div>
     );
 
   return (
-    <div ref={plane} className="backdrop-object-plane">
-      {/* Its outline is small enough to come inlined; it is named here so a test can read the mask presses use. */}
-      <div ref={box} className="backdrop-object" data-marker={object.marker} data-outline={object.outline} style={style}>
-        {light(false)}
-        {light(true)}
-      </div>
+    // Its outline is small enough to come inlined; it is named here so a test can read the mask presses use.
+    <div
+      ref={box}
+      className="backdrop-object"
+      data-marker={object.marker}
+      data-outline={object.outline}
+      data-light={building ? 'building' : undefined}
+      style={style}
+    >
+      {!building && light(false)}
+      {light(true)}
     </div>
   );
 }
+
+/** A backdrop's objects and drawn details, on one plane the player poses as their layer. */
+function BackdropPlane({ backdrop }: { backdrop: ZoneBackdrop }) {
+  const plane = useRef<HTMLDivElement>(null);
+  const art = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    registerBackdropPlane(backdrop.zone, plane.current, art.current);
+    return () => registerBackdropPlane(backdrop.zone, null, null);
+  }, [backdrop]);
+
+  return (
+    <div ref={plane} className="backdrop-object-plane">
+      {/* The objects' lights first: a building's signs and lettering are drawn over its light. */}
+      {backdrop.objects?.map((object, i) => (
+        <BackdropObjectView key={object.marker} zone={backdrop.zone} index={i} object={object} />
+      ))}
+      {backdrop.effects.includes('city') && (
+        <div ref={art} className="backdrop-art">
+          <CityDetails />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Rain over the whole view: single drops drawn by the player on one canvas (`rain.ts`), at three depths. It lies over
+ *  every world and the veil, so it can begin in the dark of the crossing into its world; the player fades it with its
+ *  world's picture and marks it as its world's layer. This canvas and the scene's are the page's only two. */
+function Rain({ zone }: { zone: ZoneBackdrop['zone'] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  useLayoutEffect(() => {
+    registerRain(zone, ref.current, canvas.current);
+    return () => registerRain(zone, null);
+  }, [zone]);
+  return (
+    <div ref={ref} className="backdrop-rain-layer" data-zone={zone}>
+      <canvas ref={canvas} className="backdrop-rain" style={{ '--rain-fade': `${RAIN_FADE_SECONDS}s` } as CSSProperties} />
+    </div>
+  );
+}
+
+/** A world's lights alone (`ZoneBackdrop.lights`), over the veil: they switch on in the dark of the crossing into it.
+ *  Placed, posed and faded by the player as its picture. */
+function Lights({ backdrop }: { backdrop: ZoneBackdrop }) {
+  const ref = useRef<HTMLImageElement>(null);
+  useLayoutEffect(() => {
+    registerLights(backdrop.zone, ref.current);
+    return () => registerLights(backdrop.zone, null);
+  }, [backdrop]);
+  return <img ref={ref} className="backdrop-lights" data-zone={backdrop.zone} {...source(backdrop.zone, backdrop.lights!)} alt="" decoding="async" draggable={false} />;
+}
+
+/** A sunset grade layer: a colour gradient from the top of the view to the bottom, faded by the player. */
+const gradeBackground = ({ top, bottom }: { top: string; bottom: string }) => `linear-gradient(${top}, ${bottom})`;
+
+const registerWarm = (el: HTMLElement | null) => registerNightfall('warm', el);
+const registerMagenta = (el: HTMLElement | null) => registerNightfall('magenta', el);
+const registerVeil = (el: HTMLElement | null) => registerNightfall('veil', el);
 
 function BackdropLayer({ backdrop }: { backdrop: ZoneBackdrop }) {
   const layer = useRef<HTMLDivElement>(null);
@@ -211,29 +315,32 @@ function BackdropLayer({ backdrop }: { backdrop: ZoneBackdrop }) {
 
   return (
     <div ref={layer} className="backdrop" data-zone={backdrop.zone} data-motion="stopped" style={style}>
-      {backdrop.layers.map(({ src }, i) => (
-        <Fragment key={src}>
-          <img
-            ref={(el) => {
-              images.current[i] = el;
-            }}
-            className="backdrop-image"
-            {...source(backdrop.zone, src)}
-            alt=""
-            decoding="async"
-            draggable={false}
-          />
-          {i === 0 && backdrop.effects.includes('stars') && <Stars horizon={backdrop.horizon} glowX={backdrop.focusX} />}
-        </Fragment>
-      ))}
+      {backdrop.layers.map((image, i) => {
+        const { srcSet, sizes } = layerSources(image, backdrop.size);
+        return (
+          <Fragment key={image.src}>
+            <img
+              ref={(el) => {
+                images.current[i] = el;
+              }}
+              className="backdrop-image"
+              data-pan={backdrop.pan ? '' : undefined}
+              {...source(backdrop.zone, image.src, srcSet)}
+              sizes={sizes}
+              alt=""
+              decoding="async"
+              draggable={false}
+            />
+            {i === 0 && backdrop.effects.includes('stars') && <Stars horizon={backdrop.horizon} glowX={backdrop.focusX} />}
+          </Fragment>
+        );
+      })}
       {backdrop.effects.includes('mist') && (
         <div className="backdrop-mist-band" data-fade={backdrop.mistFade ? '' : undefined}>
           <div className="backdrop-mist" data-tinted={backdrop.mistTint ? '' : undefined} />
         </div>
       )}
-      {backdrop.objects?.map((object, i) => (
-        <BackdropObjectView key={object.marker} zone={backdrop.zone} index={i} object={object} />
-      ))}
+      {(backdrop.objects || backdrop.effects.includes('city')) && <BackdropPlane backdrop={backdrop} />}
       {(backdrop.effects.includes('shimmer') || backdrop.effects.includes('motes')) && (
         <div className="backdrop-light">
           {backdrop.effects.includes('shimmer') && <div className="backdrop-shimmer" />}
@@ -246,8 +353,9 @@ function BackdropLayer({ backdrop }: { backdrop: ZoneBackdrop }) {
 }
 
 /** Each zone's backdrop, behind the transparent canvas. Faded and moved by `backdropPlayer`. */
-export function Backdrops({ pageOpen }: { pageOpen: boolean }) {
+export function Backdrops({ pageOpen, quality }: { pageOpen: boolean; quality: Quality }) {
   useEffect(() => setPageOpen(pageOpen), [pageOpen]);
+  useEffect(() => setRainQuality(quality), [quality]);
   return (
     <div className="backdrops" aria-hidden="true">
       {BACKDROPS.map((backdrop) => (
@@ -259,6 +367,17 @@ export function Backdrops({ pageOpen }: { pageOpen: boolean }) {
         className="backdrop-bloom"
         style={{ width: `${BLOOM_DRAWN_PX}px`, height: `${BLOOM_DRAWN_PX}px`, background: BLOOM_GRADIENT }}
       />
+      {/* Over every backdrop: the nightfall a world arriving at dusk crosses in under. The sunset grade's two layers,
+          the veil, then over the veil the world's lights and its rain. */}
+      <div ref={registerWarm} className="backdrop-grade" style={{ background: gradeBackground(SUNSET_GRADE.warm) }} />
+      <div ref={registerMagenta} className="backdrop-grade" style={{ background: gradeBackground(SUNSET_GRADE.magenta) }} />
+      <div ref={registerVeil} className="backdrop-veil" style={{ background: DUSK_VEIL_COLOR }} />
+      {BACKDROPS.filter((backdrop) => backdrop.lights).map((backdrop) => (
+        <Lights key={backdrop.zone} backdrop={backdrop} />
+      ))}
+      {BACKDROPS.filter((backdrop) => backdrop.effects.includes('rain')).map((backdrop) => (
+        <Rain key={backdrop.zone} zone={backdrop.zone} />
+      ))}
     </div>
   );
 }

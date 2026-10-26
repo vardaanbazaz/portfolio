@@ -56,7 +56,8 @@ describe('section layouts', () => {
 
   it('lays out the markers of each section in the agreed order', () => {
     const keys = (id: SectionId) => sectionLayouts[id].markers.map(markerKey);
-    expect(keys('projects')).toEqual(['datavista', 'neuroinsight-ai', 'attrition', 'kanbanlight', 'unified-api-ingester']);
+    // Left to right as the night city paints their buildings.
+    expect(keys('projects')).toEqual(['datavista', 'kanbanlight', 'attrition', 'unified-api-ingester', 'neuroinsight-ai']);
     // Most recent role first; Mahyco is a line on the page, not a box.
     expect(keys('experience')).toEqual(['drdo', 'agrybin']);
     expect(keys('publications')).toEqual(['v-surveillance', 'web-page-linker']);
@@ -111,10 +112,10 @@ describe('section layouts', () => {
     expect(MARKERS.map((m) => markerLabel(m.marker))).toEqual([
       'About',
       'DataVista',
-      'NeuroInsight-AI',
-      'Employee Attrition Analysis',
       'KanbanLight',
+      'Employee Attrition Analysis',
       'Unified API Ingester',
+      'NeuroInsight-AI',
       'DRDO',
       'AgryBin',
       'V-Surveillance',

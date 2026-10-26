@@ -2,18 +2,20 @@ import { useCallback } from 'react';
 import { markerLabel, PAGE_LABELS } from '../content/scene';
 import { opensPanel } from '../pages/contract';
 import { prefetchTarget } from '../preload';
-import { markerKey, type MarkerTarget } from '../sections/contract';
+import { markerKey, type MarkerTarget, type SectionId } from '../sections/contract';
 import { UI } from '../ui/strings';
 import { registerMarker } from './markerRegistry';
 
 interface MarkerProps {
   target: MarkerTarget;
+  section: SectionId;
   onOpen: (target: MarkerTarget) => void;
   onHoverChange: (hovered: boolean) => void;
 }
 
-/** The accessible control for a marker: a plain button beside the canvas, pinned over its box by MarkerTracker. */
-export function Marker({ target, onOpen, onHoverChange }: MarkerProps) {
+/** The accessible control for a marker: a plain button beside the canvas, pinned over its box by MarkerTracker. In
+ *  the Projects world it shows only while it has keyboard focus (index.css): the names are on the buildings. */
+export function Marker({ target, section, onOpen, onHoverChange }: MarkerProps) {
   const key = markerKey(target);
   const ref = useCallback((el: HTMLButtonElement | null) => registerMarker(key, el), [key]);
   const label = markerLabel(target);
@@ -26,6 +28,7 @@ export function Marker({ target, onOpen, onHoverChange }: MarkerProps) {
       ref={ref}
       type="button"
       className="marker"
+      data-section={section}
       // A panel opens in place, so its label names no page.
       aria-label={target.item && !panel ? UI.openItem(label, PAGE_LABELS[target.page]) : UI.openPage(label)}
       aria-haspopup={panel ? 'dialog' : undefined}

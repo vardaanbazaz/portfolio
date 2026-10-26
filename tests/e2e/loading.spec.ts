@@ -16,6 +16,7 @@ import {
   holdChunks,
   loadingScreen,
   marker,
+  openMarker,
   PAGE_CHUNKS,
   PANEL_CHUNKS,
   scrollToSection,
@@ -91,7 +92,7 @@ test('once the background fetch is done, opening a page or a panel makes no new 
   page.on('request', (request) => requested.push(request.url()));
 
   await scrollToSection(page, 'projects');
-  await marker(page, 'DataVista').click();
+  await openMarker(page, 'DataVista');
   await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toHaveText('DataVista');
   await page.keyboard.press('Escape');
   await expectExploring(page);
@@ -119,7 +120,7 @@ test('a page whose chunk fails to load says so, and loads when Try again is pres
   await expect.poll(() => scripts.chunksFetched(['CitationPanel'])).toEqual(['CitationPanel']);
   expect(failures).toBe(3);
   const before = failures;
-  await marker(page, 'DataVista').click();
+  await openMarker(page, 'DataVista');
 
   const main = page.getByRole('main');
   await expect(main.getByRole('alert')).toHaveText(/Couldn't load this page\./);
@@ -145,7 +146,7 @@ test('a page whose content chunk fails to load recovers when Try again is presse
   await page.goto('/');
   await waitForScene(page);
   await scrollToSection(page, 'projects');
-  await marker(page, 'DataVista').click();
+  await openMarker(page, 'DataVista');
 
   const main = page.getByRole('main');
   await expect(main.getByRole('alert')).toHaveText(/Couldn't load this page\./);

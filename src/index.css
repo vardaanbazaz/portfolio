@@ -125,6 +125,13 @@ button:focus-visible,
   }
 }
 
+/* An image that pans is drawn in its whole cover-crop box, placed in px by backdropPlayer, so the pan never shows
+   past its edge. */
+.backdrop-image[data-pan] {
+  inset: auto;
+  object-fit: fill;
+}
+
 /* Effects fade in once the loading screen has lifted (data-released), and their animations pause whenever the
    backdrop's motion stops (data-motion). */
 .backdrop-stars,
@@ -270,6 +277,23 @@ button:focus-visible,
   opacity: var(--glow-hover);
 }
 
+/* A building's light, over its own box (past its rect, for the glow round it): the building brightened, made brighter
+   than the painting at every pixel, so normal blending and opacity alone only ever lift it. In over --light-in, out
+   over --light-out. */
+.backdrop-object[data-light='building'] .backdrop-object-light {
+  inset: auto;
+  left: var(--light-left);
+  top: var(--light-top);
+  width: var(--light-width);
+  height: var(--light-height);
+  mix-blend-mode: normal;
+  transition: opacity var(--light-out) ease-in-out;
+}
+
+.backdrop-object[data-light='building'][data-hover] .backdrop-object-light {
+  transition-duration: var(--light-in);
+}
+
 /* Light effects, added to the picture under them: the shimmer and the motes. They fade in once the loading screen
    has lifted, as the stars and mist do. */
 .backdrop-light,
@@ -358,11 +382,324 @@ button:focus-visible,
   pointer-events: none;
 }
 
+/* Over every backdrop: the nightfall a world arriving at dusk (the night city) crosses in under. The sunset grade's two
+   colour layers, then the deep blue veil; then over the veil the world's lights alone, switching on in the dark. Each
+   is drawn once and only faded by backdropPlayer (the lights also posed as their picture). */
+.backdrop-grade,
+.backdrop-veil {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  opacity: 0;
+  will-change: opacity;
+  pointer-events: none;
+}
+
+.backdrop-lights {
+  position: absolute;
+  visibility: hidden;
+  opacity: 0;
+  will-change: transform, opacity;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* What is drawn on a backdrop's painting (the night city's signs and lights), in the painting's px, placed where the
+   cover crop puts the painting by backdropPlayer. */
+.backdrop-art {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.city,
+.city-sign,
+.city-led-wave,
+.city-hanging,
+.city-cables {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.city {
+  width: 100%;
+  height: 100%;
+}
+
+/* A project's name on its building: laid out at the sign's own size and fitted to its corners by a matrix3d. */
+.city-sign {
+  transform-origin: 0 0;
+  font-family: var(--font-ui);
+  line-height: 1;
+}
+
+.city-sign-shade,
+.city-sign-light {
+  position: absolute;
+  inset: 0;
+}
+
+/* Darkens a blown-out sign under its letters, so they read. */
+.city-sign-shade {
+  background: rgb(6 10 24);
+  opacity: var(--sign-shade);
+}
+
+.city-sign-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+/* Brighter while the building, its sign or its marker is hovered or focused: a light colour laid over the sign, faded
+   in and out with the building's light. */
+.city-sign-light {
+  opacity: 0;
+  transition: opacity var(--light-out) ease-in-out;
+}
+
+.city-sign[data-hover] .city-sign-light {
+  opacity: 1;
+  transition-duration: var(--light-in);
+}
+
+/* DataVista: cyan neon tubes, a letter at a time down the blade. */
+.city-sign[data-style='neon'] {
+  color: #e6feff;
+  font-weight: 700;
+  text-shadow:
+    0 0 1px #9ffbff,
+    0 0 4px #2ee6f2;
+}
+
+.city-sign-vertical {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 0.5em;
+}
+
+.city-sign[data-style='neon'] .city-sign-shade {
+  /* Over the blade's glowing rim too, which the corners leave out. */
+  inset: -3px -3px;
+}
+
+.city-sign[data-style='neon'] .city-sign-light {
+  inset: -3px -3px;
+  background: rgb(255 255 255 / 0.25);
+}
+
+/* KanbanLight: printed on the pale banner, dark letters, the banner lit by the floodlight above it. */
+.city-sign[data-style='banner'] {
+  color: #1f181a;
+  font-weight: 800;
+}
+
+.city-sign-flood {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(rgb(255 238 222 / var(--flood-top)), rgb(255 238 222 / var(--flood-bottom)));
+  mix-blend-mode: screen;
+  mix-blend-mode: plus-lighter;
+}
+
+.city-sign[data-style='banner'] .city-sign-text {
+  gap: 0.25em;
+}
+
+.city-sign[data-style='banner'] .city-sign-light,
+.city-sign[data-style='hanging'] .city-sign-light {
+  background: rgb(255 252 246 / 0.3);
+}
+
+/* Employee Attrition Analysis: warm gold letters along the crown's ledge. */
+.city-sign[data-style='deco'] {
+  color: #ffdc94;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 3px rgb(255 186 92 / 0.8);
+}
+
+.city-sign[data-style='deco'] .city-sign-light {
+  background: rgb(255 236 200 / 0.3);
+}
+
+/* Unified API Ingester: a flat banner like the painted one, lit by one work light above. */
+.city-sign[data-style='hanging'] {
+  color: #1f181a;
+  font-weight: 800;
+  /* The floodlit painted banner's mean colour (168, 144, 135 at 1920x1080), lighter at the top under the work light. */
+  background: linear-gradient(rgb(182 156 149), rgb(166 141 133));
+}
+
+.city-sign[data-style='hanging'] .city-sign-text {
+  gap: 0.15em;
+}
+
+.city-cables line {
+  stroke: rgb(30 30 36);
+  stroke-width: 1;
+}
+
+.city-hanging {
+  animation: city-swing var(--swing-half) ease-in-out infinite alternate;
+}
+
+@keyframes city-swing {
+  from {
+    transform: rotate(calc(var(--swing) * -1));
+  }
+
+  to {
+    transform: rotate(var(--swing));
+  }
+}
+
+/* NeuroInsight-AI: light on the violet face itself, pulsing gently. Nothing darker than the face is drawn on it: the
+   letters and their glow are white. */
+.city-sign[data-style='led'] {
+  color: #fff;
+  font-weight: 700;
+  text-shadow: 0 0 6px rgb(255 255 255 / 0.7);
+}
+
+.city-sign[data-style='led'] .city-sign-text {
+  opacity: var(--face-pulse-max);
+  animation: city-pulse var(--face-pulse) ease-in-out infinite alternate;
+}
+
+/* On hover the letters glow brighter: a copy of them with a wider white glow. */
+.city-sign[data-style='led'] .city-sign-light {
+  text-shadow:
+    0 0 4px #fff,
+    0 0 14px rgb(255 255 255 / 0.9);
+}
+
+@keyframes city-pulse {
+  from {
+    opacity: var(--face-pulse-min);
+  }
+
+  to {
+    opacity: var(--face-pulse-max);
+  }
+}
+
+/* The wave of light that sweeps up the face once a cycle (its keyframes are written by CityDetails). */
+.city-led-wave {
+  transform-origin: 0 0;
+  overflow: hidden;
+  mix-blend-mode: screen;
+  mix-blend-mode: plus-lighter;
+}
+
+.city-led-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: var(--face-wave-band);
+  /* White: laid over the face with normal blending, it may only ever lighten it. */
+  background: linear-gradient(rgb(255 255 255 / 0), rgb(255 255 255 / var(--face-wave-opacity)), rgb(255 255 255 / 0));
+  animation: city-wave var(--face-cycle) linear infinite;
+}
+
+/* Red aviation lights, far windows and car lights (the beacons' and cars' keyframes are written by CityDetails). */
+.city-beacon,
+.city-window,
+.city-car {
+  position: absolute;
+}
+
+.city-beacon {
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--beacon-color), rgb(255 59 46 / 0));
+  opacity: 0;
+  animation: city-beacon var(--beacon-period) linear infinite;
+}
+
+.city-window {
+  background: var(--window-color);
+  opacity: 0;
+  animation: city-window step-end infinite;
+}
+
+@keyframes city-window {
+  0% {
+    opacity: var(--window-lit);
+  }
+
+  50% {
+    opacity: 0;
+  }
+}
+
+.city-car {
+  width: var(--car-width);
+  height: var(--car-height);
+  border-radius: 1px;
+  background: var(--car-away);
+  opacity: 0;
+  animation: city-car linear infinite;
+}
+
+.city-car[data-toward] {
+  background: var(--car-toward);
+}
+
+/* Rain over the whole view: one canvas the player draws single drops on. It lies over every world and the veil
+   (.backdrop-rain-layer: faded by backdropPlayer with its world's picture and the nightfall, and marked as its world's
+   layer is), so it can begin in the dark of the crossing. It fades in once the loading screen has lifted, as the
+   other effects do. Through a crossing (data-crossed) the player draws only its near drops, faded by the nightfall
+   alone, so the rain adds one layer to the crossing. */
+.backdrop-rain-layer,
+.backdrop-rain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.backdrop-rain {
+  width: 100%;
+  height: 100%;
+}
+
+.backdrop-rain-layer {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.backdrop-rain {
+  opacity: 0;
+  transition: opacity var(--rain-fade) ease-out;
+}
+
+.backdrop-rain-layer[data-released] .backdrop-rain {
+  opacity: 1;
+}
+
+@starting-style {
+  .backdrop-rain-layer[data-released] .backdrop-rain {
+    opacity: 0;
+  }
+}
+
+.backdrop-rain-layer[data-crossed] .backdrop-rain {
+  opacity: 1;
+  transition: none;
+}
+
 /* A world's effects aren't drawn at all while its weight is below EFFECTS_MIN_WEIGHT (data-effects, set by
    backdropPlayer). */
 .backdrop[data-effects='off'] .backdrop-stars,
 .backdrop[data-effects='off'] .backdrop-mist-band,
 .backdrop[data-effects='off'] .backdrop-light,
+.backdrop-rain-layer[data-effects='off'] .backdrop-rain,
 .backdrop[data-effects='off'] .backdrop-object-plane {
   display: none;
 }
@@ -371,7 +708,13 @@ button:focus-visible,
 .backdrop[data-motion='stopped'] .backdrop-mist,
 .backdrop[data-motion='stopped'] .backdrop-mote,
 .backdrop[data-motion='stopped'] .backdrop-shimmer,
-.backdrop[data-motion='stopped'] .backdrop-object-light {
+.backdrop[data-motion='stopped'] .backdrop-object-light,
+.backdrop[data-motion='stopped'] .city-beacon,
+.backdrop[data-motion='stopped'] .city-window,
+.backdrop[data-motion='stopped'] .city-car,
+.backdrop[data-motion='stopped'] .city-hanging,
+.backdrop[data-motion='stopped'] .city-sign-text,
+.backdrop[data-motion='stopped'] .city-led-band {
   animation-play-state: paused;
 }
 
@@ -396,6 +739,32 @@ button:focus-visible,
 
   .backdrop-object-light-hover {
     opacity: 0;
+    transition: none;
+  }
+
+  /* The city holds still: no rain falling (the player draws none), no swing, no wave; its aviation lights hold lit and
+     its letters at full; the far windows that switch stay dark and the cars aren't drawn. */
+  .city-hanging,
+  .city-led-band,
+  .city-window {
+    animation: none;
+  }
+
+  .city-beacon {
+    animation: none;
+    opacity: 1;
+  }
+
+  .city-sign[data-style='led'] .city-sign-text {
+    animation: none;
+  }
+
+  .city-car {
+    display: none;
+  }
+
+  .city-sign-light,
+  .backdrop-object[data-light='building'] .backdrop-object-light {
     transition: none;
   }
 }
@@ -426,10 +795,20 @@ button:focus-visible,
   top: 0;
   left: 0;
   visibility: hidden;
-  /* Long names wrap, so neighbouring markers in a section overlap less. */
-  max-width: 10em;
+  /* Long names wrap onto two lines at most, evenly, so neighbouring markers in a section overlap less. */
+  max-width: 13em;
   text-align: center;
+  text-wrap: balance;
   background: rgb(20 20 23 / 0.8);
+}
+
+/* In the Projects world the buildings carry their names, so their markers aren't shown: each stays in the page, in
+   order, for the keyboard and screen readers, and shows only while it has keyboard focus. Not hidden by visibility,
+   which would take it out of the tab order (MarkerTracker's own visibility still hides it while the city is out of
+   view). */
+.marker[data-section='projects']:not(:focus-visible) {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Landing text and section captions: faded every frame by OverlayTracker; hidden until then. */
@@ -542,6 +921,24 @@ button:focus-visible,
 .caption-line {
   margin: 4px 0 0;
   color: var(--muted);
+}
+
+/* How to open one of the section's things: "Tap" where the main pointer is touch, "Click" otherwise. */
+.caption-hint [data-pointer='touch'],
+.caption-hint [data-pointer='fine'] {
+  display: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .caption-hint [data-pointer='touch'] {
+    display: inline;
+  }
+}
+
+@media not ((hover: none) and (pointer: coarse)) {
+  .caption-hint [data-pointer='fine'] {
+    display: inline;
+  }
 }
 
 .scene-hidden {

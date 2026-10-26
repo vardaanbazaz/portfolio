@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
-import { LANDING, SECTION_LINES, SECTION_NOTES, SECTION_TITLES } from '../content/scene';
+import { LANDING, SECTION_HINTS, SECTION_LINES, SECTION_NOTES, SECTION_TITLES } from '../content/scene';
 import { sceneProbe } from '../dev/sceneProbe';
 import { hasBackdropObject, setBackdropHover } from '../environment/backdropPlayer';
 import { Backdrops, BackdropTracker } from '../environment/Backdrops';
@@ -87,7 +87,7 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
     // While a panel is up, the scene's text and marker buttons are hidden so they don't show through it.
     <div className={['scene', hidden && 'scene-hidden', panel && 'scene-panel'].filter(Boolean).join(' ')} inert={phase !== 'exploring'}>
       {/* Behind the canvas, which is transparent wherever the sky dome isn't drawn. */}
-      <Backdrops pageOpen={phase === 'open' && !panel} />
+      <Backdrops pageOpen={phase === 'open' && !panel} quality={quality} />
       <Canvas
         dpr={dpr}
         frameloop={frameloop}
@@ -133,7 +133,8 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
           key={placed.key}
           placed={placed}
           onOpen={onOpen}
-          onHoverChange={(hovered) => setHoveredMarker((cur) => (hovered ? placed : cur === placed ? null : cur))}
+          // Each area hovers whichever object is under the pointer, and lets go only of what it hovered itself.
+          onHoverChange={(on) => setHoveredMarker((cur) => on ?? (cur && hasBackdropObject(cur.key) ? null : cur))}
         />
       ))}
       <div className="landing" ref={registerLanding}>
@@ -163,12 +164,20 @@ export function SceneRoot({ onOpen, hidden, onContextLost }: SceneRootProps) {
           <h2 className="caption-title">{SECTION_TITLES[id]}</h2>
           <p className="caption-line">{SECTION_LINES[id]}</p>
           {SECTION_NOTES[id] && <p className="caption-line">{SECTION_NOTES[id]}</p>}
+          {SECTION_HINTS[id] && (
+            // Only one of the two shows (index.css), by whether the screen's main pointer is touch.
+            <p className="caption-line caption-hint">
+              <span data-pointer="touch">{SECTION_HINTS[id].touch}</span>
+              <span data-pointer="fine">{SECTION_HINTS[id].pointer}</span>
+            </p>
+          )}
         </div>
       ))}
       {MARKERS.map((placed) => (
         <Marker
           key={placed.key}
           target={placed.marker}
+          section={placed.section}
           onOpen={onOpen}
           onHoverChange={(hovered) => setHoveredMarker((cur) => (hovered ? placed : cur === placed ? null : cur))}
         />

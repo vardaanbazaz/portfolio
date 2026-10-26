@@ -3,6 +3,8 @@ import {
   BLOOM_PEAK,
   BLOOM_RADIUS,
   CROSSING_SWAP_HALF_WIDTH,
+  DUSK_SWAP_HALF_WIDTH,
+  DUSK_VEIL_PEAK,
   EFFECTS_MIN_WEIGHT,
   LAYER_PUSH_PX,
   LAYER_PUSH_SCALE,
@@ -16,8 +18,15 @@ import {
   MOTE_SEED,
   MOTE_SIZE_PX,
   MOTE_SUN_BIAS,
+  NIGHTFALL,
+  NIGHTFALL_HELD_UNTIL,
+  NIGHTFALL_RAIN_SOUND,
   PARALLAX_MAX_X_PX,
   PARALLAX_MAX_Y_PX,
+  PROJECTS_PAN_T,
+  RAIN_BED_GAIN,
+  RAIN_BED_HIGHPASS_HZ,
+  RAIN_BED_LOWPASS_HZ,
   STAR_COLOR,
   STAR_GLOW_CLEAR_HALF_WIDTH,
   STAR_GLOW_FADE_WIDTH,
@@ -28,6 +37,8 @@ import {
   STAR_TINT_SHARE,
   STAR_TINTS,
   STAR_TOP_BIAS,
+  SUNSET_GRADE,
+  type NightfallStage,
   type StarTier,
 } from '../scene/tuning';
 import type { MarkerKey, SectionId } from '../sections/contract';
@@ -39,6 +50,22 @@ import aboutStoneOutline from './assets/about-stone-outline.webp';
 import landingAmbient from './assets/landing-ambient.m4a';
 import landingBase from './assets/landing-base.webp';
 import landingGround from './assets/landing-ground.webp';
+import projectsAttritionLight from './assets/projects-attrition-light.webp';
+import projectsAttritionOutline from './assets/projects-attrition-outline.webp';
+import projectsBase from './assets/projects-base.webp';
+import projectsBaseSmall from './assets/projects-base-1024.webp';
+import projectsDataVistaLight from './assets/projects-datavista-light.webp';
+import projectsDataVistaOutline from './assets/projects-datavista-outline.webp';
+import projectsIngesterLight from './assets/projects-unified-api-ingester-light.webp';
+import projectsIngesterOutline from './assets/projects-unified-api-ingester-outline.webp';
+import projectsKanbanLightLight from './assets/projects-kanbanlight-light.webp';
+import projectsKanbanLightOutline from './assets/projects-kanbanlight-outline.webp';
+import projectsLights from './assets/projects-lights.webp';
+import projectsNeuroInsightLight from './assets/projects-neuroinsight-ai-light.webp';
+import projectsNeuroInsightOutline from './assets/projects-neuroinsight-ai-outline.webp';
+import projectsRain from './assets/projects-rain.m4a';
+import { CITY_SIZE, signAreas, type CityPoint } from './city';
+import type { AmbientFilter } from '../sound/sound';
 import { ZONES, zoneWeight, type ZoneId, type ZoneTable } from './zones';
 
 /** One still image of a zone's backdrop. All of a zone's images share one size, so they line up when drawn the same
@@ -46,11 +73,14 @@ import { ZONES, zoneWeight, type ZoneId, type ZoneTable } from './zones';
 export interface BackdropImage {
   src: string;
   depth: number;
+  /** A copy half as wide, for narrow screens, and its width in px. */
+  small?: { src: string; width: number };
 }
 
 /** Drawn by code over a zone's images: a mist band drifting along the horizon, faint stars fading in the sky, warm
- *  motes of light drifting up, and a slow shimmer of the light falling from the upper left. */
-export type BackdropEffect = 'mist' | 'stars' | 'motes' | 'shimmer';
+ *  motes of light drifting up, a slow shimmer of the light falling from the upper left, slanting rain, and the night
+ *  city's own details (its buildings' names, aviation lights, far windows and car lights: `city.ts`). */
+export type BackdropEffect = 'mist' | 'stars' | 'motes' | 'shimmer' | 'rain' | 'city';
 
 /** A point of a backdrop's images, as fractions of their width (0 left, 1 right) and height (0 top, 1 bottom). */
 export interface ImagePoint {
@@ -93,9 +123,15 @@ export interface BackdropObject {
   /** The section marker it stands for: the marker button is pinned above it, and a press on it opens what the
    *  marker opens. */
   marker: MarkerKey;
-  /** Its light: an image of `rect`'s size, warm gold, opaque only on the pixels that glow. Added over it, breathing,
-   *  with a soft round bloom. */
-  glow?: { src: string; bloom: Bloom };
+  /** Surfaces drawn or painted on it that take presses as its outline does, though they may reach past it: its sign or
+   *  name (a blade, a banner and its cables, lettering, a lit face). Polygons, in fractions of the images. Where any
+   *  object's surface is under a press, it takes it before any outline does. */
+  areas?: readonly (readonly ImagePoint[])[];
+  /** Its light: an image of `rect`'s size (or of `box`, where given), opaque only on the pixels that glow. Added over
+   *  it, breathing, with a soft round bloom; unless `rest` is false, when it shows only on hover and focus (a
+   *  building's light: the building brightened, drawn with normal blending, with a glow round it, so its image reaches
+   *  past its rect). */
+  glow?: { src: string; bloom?: Bloom; rest?: boolean; box?: ImageRect };
 }
 
 /** A zone's world behind the transparent canvas: still image layers moved by code, effects over them, and an
@@ -124,7 +160,31 @@ export interface ZoneBackdrop {
   portraitFocusX: number;
   effects: readonly BackdropEffect[];
   ambient?: string;
+  /** The ambient bed's gain at full weight, when it isn't `AMBIENT_GAIN`. */
+  ambientGain?: number;
+  /** Filters the ambient bed plays through, in Hz, where it has any. */
+  ambientFilter?: AmbientFilter;
+  /** How the crossing from the world before it arrives here: at dawn (the bloom, by default), or at dusk (the veil). */
+  arrival?: 'dawn' | 'dusk';
+  /** Where its picture is wider than the view: the stretch of the path (t) over which it pans sideways to bring each
+   *  of its objects to the middle of the view in turn, left to right. */
+  pan?: readonly [from: number, to: number];
+  /** For a world arriving at dusk: an image of its lights alone (its bright pixels, the rest clear), the same picture
+   *  as its layers, which switches on in the dark of the crossing before the rest of it comes in. */
+  lights?: string;
 }
+
+/** A building's rect and its light's box, in px of the city's 2048 by 1750 painting, as fractions. */
+const cityRect = (x: number, y: number, width: number, height: number): ImageRect => ({
+  x: x / CITY_SIZE.width,
+  y: y / CITY_SIZE.height,
+  width: width / CITY_SIZE.width,
+  height: height / CITY_SIZE.height,
+});
+const cityPoint = ([x, y]: CityPoint): ImagePoint => ({ x: x / CITY_SIZE.width, y: y / CITY_SIZE.height });
+
+/** A project's sign surfaces on the city painting, as fractions of it. */
+const cityAreas = (page: Parameters<typeof signAreas>[0]) => signAreas(page).map((polygon) => polygon.map(cityPoint));
 
 /** At most one per zone. A new world is one more entry here; nothing else changes. */
 export const BACKDROPS: readonly ZoneBackdrop[] = [
@@ -176,6 +236,92 @@ export const BACKDROPS: readonly ZoneBackdrop[] = [
     // The open meadow is on the left; the stone stands in front of the horizon from column 622 (0.3 of the width), and
     // the hanging roots and the trunk right of it.
     mistFade: [0.2, 0.28],
+  },
+  {
+    zone: 'projects',
+    size: { width: 2048, height: 1750 },
+    layers: [{ src: projectsBase, depth: 0.5, small: { src: projectsBaseSmall, width: 1024 } }],
+    // Each building, traced by hand from the painting (its body and its crane), down to the railing. Listed back to
+    // front where they overlap: the second crane's jib reaches in front of the violet tower. Rects and tops in px of
+    // the 2048 by 1750 image.
+    objects: [
+      {
+        kind: 'painted',
+        // The dark glass tower with the cyan light line and blade sign: columns 95 to 399, rows 130 to 1282.
+        rect: cityRect(95, 130, 305, 1153),
+        outline: projectsDataVistaOutline,
+        // The top of its light line.
+        top: { x: 290 / 2048, y: 133 / 1750 },
+        depth: 0.5,
+        marker: 'datavista',
+        areas: cityAreas('datavista'),
+        // Each building's light reaches 28 px past its rect, for the glow round it (to an even size).
+        glow: { src: projectsDataVistaLight, rest: false, box: cityRect(67, 102, 362, 1210) },
+      },
+      {
+        kind: 'painted',
+        // The construction tower with its crane and the pale banner: columns 415 to 777, rows 497 to 1389.
+        rect: cityRect(415, 497, 363, 893),
+        outline: projectsKanbanLightOutline,
+        // The top of its crane's mast.
+        top: { x: 531 / 2048, y: 500 / 1750 },
+        depth: 0.5,
+        marker: 'kanbanlight',
+        areas: cityAreas('kanbanlight'),
+        glow: { src: projectsKanbanLightLight, rest: false, box: cityRect(387, 469, 420, 950) },
+      },
+      {
+        kind: 'painted',
+        // The amber Art Deco tower, spire to base: columns 868 to 1171, rows 178 to 1459.
+        rect: cityRect(868, 178, 304, 1282),
+        outline: projectsAttritionOutline,
+        // The spire's tip.
+        top: { x: 1021 / 2048, y: 181 / 1750 },
+        depth: 0.5,
+        marker: 'attrition',
+        areas: cityAreas('attrition'),
+        glow: { src: projectsAttritionLight, rest: false, box: cityRect(840, 150, 360, 1338) },
+      },
+      {
+        kind: 'painted',
+        // The violet tower and its mast: columns 1545 to 1815, rows 95 to 1257.
+        rect: cityRect(1545, 95, 271, 1163),
+        outline: projectsNeuroInsightOutline,
+        // The top of its face, beside the mast.
+        top: { x: 1680 / 2048, y: 258 / 1750 },
+        depth: 0.5,
+        marker: 'neuroinsight-ai',
+        areas: cityAreas('neuroinsight-ai'),
+        glow: { src: projectsNeuroInsightLight, rest: false, box: cityRect(1517, 67, 328, 1220) },
+      },
+      {
+        kind: 'painted',
+        // The steel-skeleton block, its crane, and the banner hung from the hook: columns 1200 to 1599, rows 545 to
+        // 1459.
+        rect: cityRect(1200, 545, 400, 915),
+        outline: projectsIngesterOutline,
+        // The top of its crane's mast.
+        top: { x: 1358 / 2048, y: 545 / 1750 },
+        depth: 0.5,
+        marker: 'unified-api-ingester',
+        areas: cityAreas('unified-api-ingester'),
+        glow: { src: projectsIngesterLight, rest: false, box: cityRect(1172, 517, 456, 972) },
+      },
+    ],
+    // Not the eye line (the far skyline's haze, near row 870), which would crop the spires on wide screens: row 315,
+    // kept at that height of the view, which at 16:9 shows rows 108 to 1259, from just above the Art Deco spire's tip
+    // down to the railing on the left.
+    horizon: 0.18,
+    focusX: 0.5,
+    // The Art Deco tower in the middle; the pan moves from there.
+    portraitFocusX: 0.5,
+    effects: ['rain', 'city'],
+    ambient: projectsRain,
+    ambientGain: RAIN_BED_GAIN,
+    ambientFilter: { highpassHz: RAIN_BED_HIGHPASS_HZ, lowpassHz: RAIN_BED_LOWPASS_HZ },
+    arrival: 'dusk',
+    pan: PROJECTS_PAN_T,
+    lights: projectsLights,
   },
 ];
 
@@ -232,8 +378,9 @@ const standsInFor = (backdrop: ZoneBackdrop, section: SectionId) =>
 
 /** How much of a section's visuals shows at path position t: whatever the backdrops leave, so nothing grey is drawn
  *  over a backdrop. A backdrop in the section's own zone hides it only when one of its objects stands in for it (as
- *  the grove's stone does for About); otherwise the section shows over its own world. 0 at the landing and all the
- *  way to About, 1 wherever no backdrop that hides it has any weight. */
+ *  the grove's stone does for About, and the city's buildings for Projects), and then wherever it has any weight at
+ *  all; otherwise the section shows over its own world. 0 at the landing and all the way to About, 1 wherever no
+ *  backdrop that hides it has any weight. */
 export function sectionOpacity(
   t: number,
   section: SectionId,
@@ -243,7 +390,9 @@ export function sectionOpacity(
 ): number {
   let covered = 0;
   for (const backdrop of backdrops) {
-    if (backdrop.zone !== section || standsInFor(backdrop, section)) covered += backdropWeight(t, backdrop.zone, zones, ready);
+    const weight = backdropWeight(t, backdrop.zone, zones, ready);
+    if (backdrop.zone !== section) covered += weight;
+    else if (standsInFor(backdrop, section) && weight > 0) covered = 1;
   }
   const opacity = Math.min(Math.max(1 - covered, 0), 1);
   return opacity < BACKDROP_MIN_WEIGHT ? 0 : opacity;
@@ -285,9 +434,91 @@ const smoothstep = (x: number) => x * x * (3 - 2 * x);
 const clamp01 = (x: number) => Math.min(Math.max(x, 0), 1);
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 
+/** How a crossing into a zone arrives: at dawn unless its backdrop says dusk. */
+const arrivalOf = (zone: ZoneId, backdrops: readonly ZoneBackdrop[]) => backdrops.find((b) => b.zone === zone)?.arrival ?? 'dawn';
+
+/** How far in a stage of the nightfall is at a share u of the crossing (0 to 1): rising over its `rise`, falling over
+ *  its `fall`, eased; 0 before it rises and after it has fallen, and at both ends of the crossing. */
+export function stageAt(stage: NightfallStage, u: number): number {
+  if (u <= 0 || u >= 1) return 0;
+  const [r0, r1] = stage.rise;
+  if (u <= r0) return 0;
+  const rise = u >= r1 ? 1 : smoothstep((u - r0) / (r1 - r0));
+  if (!stage.fall) return rise;
+  const [f0, f1] = stage.fall;
+  if (u >= f1) return 0;
+  return u <= f0 ? rise : rise * smoothstep(1 - (u - f0) / (f1 - f0));
+}
+
+/** Every layer of the nightfall at path position t, as the opacity it is drawn at: the sunset grade's warm and
+ *  magenta layers, the veil, the city's near rain and its lights; and how far the rain bed has faded in (`sound`).
+ *  All 0 outside a crossing into a world that arrives at dusk, so at both stops. Each scales with how far both
+ *  worlds' images have come in. */
+export interface Nightfall {
+  warm: number;
+  magenta: number;
+  veil: number;
+  rain: number;
+  lights: number;
+  sound: number;
+}
+
+export const NO_NIGHTFALL: Nightfall = { warm: 0, magenta: 0, veil: 0, rain: 0, lights: 0, sound: 0 };
+
+export function nightfallAt(
+  t: number,
+  backdrops: readonly ZoneBackdrop[] = BACKDROPS,
+  zones: ZoneTable = ZONES,
+  ready: Readiness = backdropReadiness,
+): Nightfall {
+  const crossing = crossingAt(t, backdrops, zones, ready);
+  if (!crossing || arrivalOf(crossing.to, backdrops) !== 'dusk') return NO_NIGHTFALL;
+  const { u, ready: k } = crossing;
+  const [s0, s1] = NIGHTFALL_RAIN_SOUND;
+  return {
+    warm: SUNSET_GRADE.warm.peak * stageAt(NIGHTFALL.warm, u) * k,
+    magenta: SUNSET_GRADE.magenta.peak * stageAt(NIGHTFALL.magenta, u) * k,
+    veil: DUSK_VEIL_PEAK * stageAt(NIGHTFALL.veil, u) * k,
+    rain: stageAt(NIGHTFALL.rain, u) * k,
+    lights: stageAt(NIGHTFALL.lights, u) * k,
+    sound: smoothstep(clamp01((u - s0) / (s1 - s0))),
+  };
+}
+
+/** The dusk veil's opacity at path position t: 0 outside a crossing into a world that arrives at dusk, and so at
+ *  both stops; its peak while the pictures swap. */
+export const veilAt = (t: number, backdrops: readonly ZoneBackdrop[] = BACKDROPS, zones: ZoneTable = ZONES, ready: Readiness = backdropReadiness) =>
+  nightfallAt(t, backdrops, zones, ready).veil;
+
+/** Whether both worlds of a crossing hold still: across the whole of a dawn crossing, and across a dusk crossing
+ *  until its lights have gone into the full city (`NIGHTFALL_HELD_UNTIL`), after which the second world's life
+ *  starts. */
+export function crossingHeld(
+  crossing: { to: ZoneId; u: number } | null,
+  backdrops: readonly ZoneBackdrop[] = BACKDROPS,
+): boolean {
+  if (!crossing) return false;
+  return arrivalOf(crossing.to, backdrops) !== 'dusk' || crossing.u < NIGHTFALL_HELD_UNTIL;
+}
+
+/** How a world's ambient bed follows a crossing into it at dusk: its rain bed only fades in from the rain's first
+ *  streaks (`Nightfall.sound`). 1 anywhere else. */
+export function ambientCrossing(
+  t: number,
+  zone: ZoneId,
+  backdrops: readonly ZoneBackdrop[] = BACKDROPS,
+  zones: ZoneTable = ZONES,
+  ready: Readiness = backdropReadiness,
+): number {
+  const crossing = crossingAt(t, backdrops, zones, ready);
+  if (!crossing || crossing.to !== zone || arrivalOf(zone, backdrops) !== 'dusk') return 1;
+  return nightfallAt(t, backdrops, zones, ready).sound;
+}
+
 /**
  * How much of a backdrop's picture shows at path position t. Its weight, except during a crossing (`crossingAt`):
- * there the pictures crossfade over `CROSSING_SWAP_HALF_WIDTH` each side of the midpoint, under the bloom, and the two
+ * there the pictures crossfade over `CROSSING_SWAP_HALF_WIDTH` each side of the midpoint, under the bloom (or over
+ * `DUSK_SWAP_HALF_WIDTH`, under the veil at its peak, into a world arriving at dusk), and the two
  * always sum to 1, so nothing of the dome shows between them. While a world is still fading in, it eases from the one
  * to the other.
  */
@@ -301,7 +532,8 @@ export function backdropVisibility(
   const weight = backdropWeight(t, zone, zones, ready);
   const crossing = crossingAt(t, backdrops, zones, ready);
   if (!crossing || (zone !== crossing.from && zone !== crossing.to)) return weight;
-  const into = smoothstep(clamp01((crossing.u - (0.5 - CROSSING_SWAP_HALF_WIDTH)) / (2 * CROSSING_SWAP_HALF_WIDTH)));
+  const half = arrivalOf(crossing.to, backdrops) === 'dusk' ? DUSK_SWAP_HALF_WIDTH : CROSSING_SWAP_HALF_WIDTH;
+  const into = smoothstep(clamp01((crossing.u - (0.5 - half)) / (2 * half)));
   return lerp(weight, zone === crossing.to ? into : 1 - into, crossing.ready);
 }
 
@@ -319,7 +551,7 @@ export const bloomRise = (u: number) => smoothstep(clamp01(1 - Math.abs(2 * u - 
 
 /**
  * The bloom at path position t in a `width` by `height` view, or null outside a crossing (opacity exactly 0 at both
- * stops). A radial light that grows from the first world's light (the landing's dawn glow) and travels to the
+ * stops) and in a crossing into a world that arrives at dusk. A radial light that grows from the first world's light (the landing's dawn glow) and travels to the
  * second's (the grove's sun): its opacity rises to `peak` at the midpoint and its radius to `BLOOM_RADIUS.mid` of the
  * view's width, from `BLOOM_RADIUS.end` at either end. Each world's light is placed by that world's own cover crop.
  */
@@ -333,7 +565,7 @@ export function bloomAt(
   peak: number = BLOOM_PEAK,
 ): BloomState | null {
   const crossing = crossingAt(t, backdrops, zones, ready);
-  if (!crossing) return null;
+  if (!crossing || arrivalOf(crossing.to, backdrops) === 'dusk') return null;
   const light = (zone: ZoneId) => {
     const backdrop = backdrops.find((b) => b.zone === zone)!;
     return coverPoint(backdrop, backdrop.sun ?? { x: backdrop.focusX, y: backdrop.horizon }, width, height);
@@ -409,6 +641,31 @@ export function coverPoint(backdrop: ZoneBackdrop, point: ImagePoint, width: num
   return [(width - drawnWidth) * focusX + point.x * drawnWidth, (height - drawnHeight) * backdrop.horizon + point.y * drawnHeight];
 }
 
+/** Where an object's middle column is, as a fraction of its backdrop's width. */
+const objectCentre = ({ rect }: BackdropObject) => rect.x + rect.width / 2;
+
+/**
+ * How far, in px, a backdrop wider than a `width` by `height` view is panned sideways at path position t: across its
+ * `pan` stretch it brings each object's middle column to the middle of the view in turn, left to right, easing
+ * between them so it dwells a little on each; never so far that an edge of the picture shows. 0 for a backdrop with
+ * no pan, or one no wider than the view.
+ */
+export function panOffset(backdrop: ZoneBackdrop, t: number, width: number, height: number): number {
+  const { pan, objects } = backdrop;
+  if (!pan || !objects?.length) return 0;
+  const scale = Math.max(width / backdrop.size.width, height / backdrop.size.height);
+  const drawn = backdrop.size.width * scale;
+  if (drawn <= width + 0.5) return 0;
+  const stops = objects.map(objectCentre).sort((a, b) => a - b);
+  const along = clamp01((t - pan[0]) / (pan[1] - pan[0])) * (stops.length - 1);
+  const i = Math.min(Math.floor(along), stops.length - 2);
+  const centre = stops.length > 1 ? lerp(stops[i], stops[i + 1], smoothstep(along - i)) : stops[0];
+  const focusX = portraitView(width, height) ? backdrop.portraitFocusX : backdrop.focusX;
+  const restLeft = (width - drawn) * focusX;
+  const offset = width / 2 - restLeft - centre * drawn;
+  return Math.min(Math.max(offset, width - drawn - restLeft), -restLeft);
+}
+
 /** Where a pose moves a point of the view: scaled about the middle of the horizon row (the layers' transform
  *  origin), then shifted. */
 export function posePoint([x, y]: readonly [number, number], pose: LayerPose, horizon: number, width: number, height: number): [x: number, y: number] {
@@ -443,6 +700,43 @@ export function objectBox(backdrop: ZoneBackdrop, object: BackdropObject, pose: 
 /** Where a backdrop object's top shows in the view in a pose. */
 export function objectTop(backdrop: ZoneBackdrop, object: BackdropObject, pose: LayerPose, width: number, height: number): [x: number, y: number] {
   return posePoint(coverPoint(backdrop, object.top, width, height), pose, backdrop.horizon, width, height);
+}
+
+/** Where a point of the view (px) lands on a backdrop's images in a pose, as fractions of them: the inverse of
+ *  `posePoint` and `coverPoint`. */
+export function imagePointAt(backdrop: ZoneBackdrop, pose: LayerPose, x: number, y: number, width: number, height: number): ImagePoint {
+  const originX = width / 2;
+  const originY = backdrop.horizon * height;
+  const restX = originX + (x - originX - pose.x) / pose.scale;
+  const restY = originY + (y - originY - pose.y) / pose.scale;
+  const [left, top] = coverPoint(backdrop, { x: 0, y: 0 }, width, height);
+  const [right, bottom] = coverPoint(backdrop, { x: 1, y: 1 }, width, height);
+  return { x: (restX - left) / (right - left), y: (restY - top) / (bottom - top) };
+}
+
+/** Whether a point lies inside a polygon (even-odd). */
+export function insidePolygon(polygon: readonly ImagePoint[], { x, y }: ImagePoint): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[i];
+    const b = polygon[j];
+    if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
+/** The box in the view that takes presses for an object in a pose: its rect and its surfaces (`areas`) together. */
+export function objectHitBox(backdrop: ZoneBackdrop, object: BackdropObject, pose: LayerPose, width: number, height: number): ViewBox {
+  const box = objectBox(backdrop, object, pose, width, height);
+  let [left, top, right, bottom] = [box.left, box.top, box.left + box.width, box.top + box.height];
+  for (const point of object.areas?.flat() ?? []) {
+    const [x, y] = posePoint(coverPoint(backdrop, point, width, height), pose, backdrop.horizon, width, height);
+    left = Math.min(left, x);
+    top = Math.min(top, y);
+    right = Math.max(right, x);
+    bottom = Math.max(bottom, y);
+  }
+  return { left, top, width: right - left, height: bottom - top };
 }
 
 /** One mote of light: its place as fractions of the view, its size in px and opacity, the seconds of its drift and

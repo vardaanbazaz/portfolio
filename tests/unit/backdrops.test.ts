@@ -58,6 +58,7 @@ import {
   SWEEP_PEAK_GAIN,
 } from '../../src/scene/tuning';
 import { SECTION_IDS } from '../../src/sections/contract';
+import { webpSize } from '../fixtures/webp';
 
 const backdrop = (zone: ZoneBackdrop['zone']): ZoneBackdrop => ({
   zone,
@@ -75,8 +76,8 @@ describe('the backdrop registry', () => {
     expect(new Set(zones).size).toBe(zones.length);
   });
 
-  it('has the landing world, then the About grove', () => {
-    expect(BACKDROPS.map((b) => b.zone)).toEqual(['landing', 'about']);
+  it('has the landing world, then the About grove, then the night city at Projects', () => {
+    expect(BACKDROPS.map((b) => b.zone)).toEqual(['landing', 'about', 'projects']);
   });
 });
 
@@ -156,10 +157,14 @@ describe('worldOpacity', () => {
     }
   });
 
-  it('rises again from About to Projects, which has no backdrop', () => {
-    const mid = (ZONE_T.about + ZONE_T.projects) / 2;
+  it('is exactly 0 from About to Projects, where the grove gives way to the city', () => {
+    for (let i = 0; i <= 20; i++) expect(worldOpacity(ZONE_T.about + ((ZONE_T.projects - ZONE_T.about) * i) / 20)).toBe(0);
+  });
+
+  it('rises again from Projects to Experience, which has no backdrop', () => {
+    const mid = (ZONE_T.projects + ZONE_T.experience) / 2;
     expect(worldOpacity(mid)).toBeCloseTo(0.5);
-    expect(worldOpacity(ZONE_T.projects)).toBe(1);
+    expect(worldOpacity(ZONE_T.experience)).toBe(1);
   });
 });
 
@@ -167,7 +172,7 @@ describe('a world whose images have not come in', () => {
   const notIn: Readiness = (zone) => (zone === 'about' ? 0 : 1);
 
   it('leaves the path as it was before that world had a backdrop: the dome, and the About grey box, show', () => {
-    const before = [BACKDROPS[0]];
+    const before = BACKDROPS.filter((b) => b.zone !== 'about');
     for (const t of [ZONE_T.about / 2, ZONE_T.about, (ZONE_T.about + ZONE_T.projects) / 2]) {
       expect(worldOpacity(t, undefined, undefined, notIn)).toBeCloseTo(worldOpacity(t, before), 12);
       expect(sectionOpacity(t, 'about', undefined, undefined, notIn)).toBeCloseTo(sectionOpacity(t, 'about', before), 12);
@@ -235,15 +240,22 @@ describe('sectionOpacity', () => {
     for (const t of [0, 0.05, ZONE_T.about, 1]) for (const id of SECTION_IDS) expect(sectionOpacity(t, id, [])).toBe(1);
   });
 
-  it('hides About wherever the grove has weight: the stone stands in for its grey box', () => {
+  it('hides About wherever the grove has weight (the stone stands in for its grey box), and under the city after', () => {
     for (let i = 0; i <= 20; i++) expect(sectionOpacity((ZONE_T.about * i) / 20, 'about')).toBe(0);
-    expect(sectionOpacity((ZONE_T.about + ZONE_T.projects) / 2, 'about')).toBeCloseTo(0.5);
-    expect(sectionOpacity(ZONE_T.projects, 'about')).toBe(1);
+    for (let i = 0; i <= 20; i++) expect(sectionOpacity(ZONE_T.about + ((ZONE_T.projects - ZONE_T.about) * i) / 20, 'about')).toBe(0);
+    expect(sectionOpacity(ZONE_T.experience, 'about')).toBe(1);
   });
 
-  it('hides every section on the way from the landing to About, and Projects until the grove fades', () => {
-    for (let i = 0; i <= 20; i++) for (const id of SECTION_IDS) expect(sectionOpacity((ZONE_T.about * i) / 20, id)).toBe(0);
-    expect(sectionOpacity(ZONE_T.projects, 'projects')).toBe(1);
+  it('hides every section on the way from the landing to Projects', () => {
+    for (let i = 0; i <= 40; i++) for (const id of SECTION_IDS) expect(sectionOpacity((ZONE_T.projects * i) / 40, id)).toBe(0);
+  });
+
+  it('never draws the grey Projects boxes wherever the city has any weight: its buildings stand in for them', () => {
+    for (let i = 0; i <= 400; i++) {
+      const t = i / 400;
+      if (backdropWeight(t, 'projects') > 0) expect(sectionOpacity(t, 'projects'), `t ${t}`).toBe(0);
+    }
+    expect(sectionOpacity(ZONE_T.experience, 'projects')).toBe(1);
   });
 
   it('does not hide a section over its own zone backdrop, only the others', () => {
@@ -345,7 +357,7 @@ describe('the crossing between the landing and the grove', () => {
 
   it('lies between two zones that both have a backdrop, and nowhere else', () => {
     expect(thresholdAt(at(0.25))).toEqual({ from: 'landing', to: 'about', u: expect.closeTo(0.25, 9) });
-    for (const t of [0, ZONE_T.about, (ZONE_T.about + ZONE_T.projects) / 2, 1]) expect(thresholdAt(t)).toBeNull();
+    for (const t of [0, ZONE_T.about, (ZONE_T.projects + ZONE_T.experience) / 2, 1]) expect(thresholdAt(t)).toBeNull();
     expect(thresholdAt(at(0.5), [backdrop('landing')])).toBeNull();
   });
 
@@ -489,7 +501,7 @@ describe('the grove and its painted stone', () => {
     expect(top.y).toBeCloseTo(rect.y, 12);
     expect(top.x).toBeGreaterThan(rect.x + 0.3 * rect.width);
     expect(top.x).toBeLessThan(rect.x + 0.7 * rect.width);
-    const { bloom } = glow!;
+    const bloom = glow!.bloom!;
     expect(bloom.x - bloom.rx).toBeGreaterThanOrEqual(0);
     expect(bloom.x + bloom.rx).toBeLessThanOrEqual(1);
     expect(bloom.y - bloom.ry).toBeGreaterThanOrEqual(0);
@@ -568,24 +580,6 @@ describe('the grove and its painted stone', () => {
 });
 
 /** A WebP's canvas size, from its header: VP8 (lossy), VP8X (lossy with alpha) or VP8L (lossless). */
-function webpSize(file: string) {
-  const bytes = Uint8Array.from(atob(file.split(',')[1]), (c) => c.charCodeAt(0));
-  const chunk = String.fromCharCode(...bytes.slice(12, 16));
-  expect(['VP8 ', 'VP8X', 'VP8L']).toContain(chunk);
-  if (chunk === 'VP8 ') {
-    // After the 3-byte frame tag and the start code: 14 bits of width, then 14 of height, each with 2 bits of scale.
-    const uint16 = (at: number) => bytes[at] | (bytes[at + 1] << 8);
-    return { width: uint16(26) & 0x3fff, height: uint16(28) & 0x3fff };
-  }
-  if (chunk === 'VP8L') {
-    // After the 0x2f signature: 14 bits of width - 1, then 14 of height - 1, least significant first.
-    const bits = bytes[21] | (bytes[22] << 8) | (bytes[23] << 16) | (bytes[24] << 24);
-    return { width: (bits & 0x3fff) + 1, height: ((bits >>> 14) & 0x3fff) + 1 };
-  }
-  const uint24 = (at: number) => bytes[at] | (bytes[at + 1] << 8) | (bytes[at + 2] << 16);
-  return { width: uint24(24) + 1, height: uint24(27) + 1 };
-}
-
 describe('moteField', () => {
   const grove = BACKDROPS.find((b) => b.zone === 'about')!;
   const motes = moteField(grove.sun!.x);

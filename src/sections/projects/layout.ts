@@ -1,8 +1,9 @@
 import type { PageId } from '../../pages/contract';
 import type { SectionLayout, SectionMarker, Vec3 } from '../contract';
 
-/** Projects in marker order along the row, left to right as seen from the path. */
-const PROJECTS: readonly PageId[] = ['datavista', 'neuroinsight-ai', 'attrition', 'kanbanlight', 'unified-api-ingester'];
+/** Projects in marker order along the row, left to right as seen from the path: the order of the night city's
+ *  buildings, so focus moves across them left to right. */
+const PROJECTS: readonly PageId[] = ['datavista', 'kanbanlight', 'attrition', 'unified-api-ingester', 'neuroinsight-ai'];
 
 const SPACING = 0.9;
 const HALF_WIDTH = 0.35;

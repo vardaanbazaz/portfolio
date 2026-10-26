@@ -62,11 +62,21 @@ let visibility: VisibilitySource | null = null;
 let pending: { direction: Direction; requestedAt: number } | null = null;
 const listeners = new Set<() => void>();
 
+/** A bed's filters: a high-pass and a low-pass, each 2nd order (Butterworth), at these frequencies in Hz. */
+export interface AmbientFilter {
+  highpassHz: number;
+  lowpassHz: number;
+}
+
+/** A 2nd-order Butterworth's resonance as Web Audio reads a low-pass or high-pass Q: in dB, 20 log10(1 / sqrt 2). */
+const BUTTERWORTH_Q_DB = -3.0103;
+
 /** One looping ambient bed. `level` is what the scene last asked for; the nodes exist once its file has decoded. */
 interface Bed {
   level: number;
   loading: boolean;
   gain: GainNode | null;
+  filter?: AmbientFilter;
 }
 const beds = new Map<string, Bed>();
 /** Every bed goes through this, so mute fades them all out together. Created with the context. */
@@ -136,7 +146,17 @@ function startBed(ctx: AudioContext, url: string, bed: Bed) {
       source.loop = true;
       const gain = ctx.createGain();
       gain.gain.value = 0;
-      source.connect(gain).connect(bus);
+      let out: AudioNode = source;
+      if (bed.filter) {
+        for (const [type, hz] of [['highpass', bed.filter.highpassHz], ['lowpass', bed.filter.lowpassHz]] as const) {
+          const filter = ctx.createBiquadFilter();
+          filter.type = type;
+          filter.frequency.value = hz;
+          filter.Q.value = BUTTERWORTH_Q_DB;
+          out = out.connect(filter);
+        }
+      }
+      out.connect(gain).connect(bus);
       source.start();
       gain.gain.setTargetAtTime(bed.level, ctx.currentTime, AMBIENT_FADE_SECONDS);
       bed.gain = gain;
@@ -244,12 +264,13 @@ export const sound = {
 
   /**
    * Sets an ambient bed's level (0 to 1), easing there with time constant `fadeSeconds`. Before the first press it
-   * only records the level; the press that creates the context starts the bed. Fetches nothing until then.
+   * only records the level; the press that creates the context starts the bed. Fetches nothing until then. A bed
+   * with `filter` plays through it.
    */
-  ambient(url: string, level: number, fadeSeconds: number) {
+  ambient(url: string, level: number, fadeSeconds: number, filter?: AmbientFilter) {
     let bed = beds.get(url);
     if (!bed) {
-      bed = { level: 0, loading: false, gain: null };
+      bed = { level: 0, loading: false, gain: null, filter };
       beds.set(url, bed);
     }
     if (Math.abs(level - bed.level) < 1e-4) return;

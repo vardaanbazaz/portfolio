@@ -63,7 +63,7 @@ test('the landing backdrop is two still images behind the canvas, with mist and 
   // Behind the canvas, which leaves the sky to it.
   const behind = await page.evaluate(() => {
     const backdrops = document.querySelector('.backdrops')!;
-    const canvas = document.querySelector('.scene canvas')!;
+    const canvas = document.querySelector('.scene canvas:not(.backdrop-rain)')!;
     return Boolean(backdrops.compareDocumentPosition(canvas) & Node.DOCUMENT_POSITION_FOLLOWING);
   });
   expect(behind).toBe(true);
@@ -325,7 +325,7 @@ test.describe('the landing ambient bed', () => {
 
 test.describe("nothing of another zone over the landing's backdrop", () => {
   /** What the canvas says it draws of a section: 0 while hidden, else its opacity. */
-  const drawn = async (page: Page, id: SectionId) => Number(await page.locator('.scene canvas').getAttribute(`data-section-${id}`));
+  const drawn = async (page: Page, id: SectionId) => Number(await page.locator('.scene canvas:not(.backdrop-rain)').getAttribute(`data-section-${id}`));
 
   /** Where the About box stood over the landing's sky, behind the name, before sections gave way to the backdrop. */
   const ABOUT_BOX_AT_LANDING = { x: 380, y: 150 };
@@ -355,16 +355,20 @@ test.describe("nothing of another zone over the landing's backdrop", () => {
     expect(await drawn(page, 'about')).toBe(0);
   });
 
-  test('at About the grey box is not drawn but its marker shows; in the grey zones every section in range is drawn in full', async ({ page }) => {
+  test('at About and Projects the grey boxes are not drawn but the markers show; in the grey zones every section in range is drawn in full', async ({ page }) => {
     await page.goto('/');
     await waitForScene(page);
     await scrollToSection(page, 'about');
     await expect(marker(page, 'About')).toBeVisible();
     expect(await drawn(page, 'about')).toBe(0);
-    for (const id of ['projects', 'experience'] as const) {
-      await scrollToSection(page, id);
-      await expect.poll(() => drawn(page, id)).toBe(1);
-      await expect(page.locator('button.marker:visible').first()).toBeVisible();
-    }
+    // The night city's buildings stand in for the Projects boxes.
+    await scrollToSection(page, 'projects');
+    // Its markers are in place but not shown: the buildings carry their names.
+    await expect(marker(page, 'DataVista')).toHaveCSS('visibility', 'visible');
+    await expect(marker(page, 'DataVista')).toHaveCSS('opacity', '0');
+    await expect.poll(() => drawn(page, 'projects')).toBe(0);
+    await scrollToSection(page, 'experience');
+    await expect.poll(() => drawn(page, 'experience')).toBe(1);
+    await expect(page.locator('button.marker:visible').first()).toBeVisible();
   });
 });

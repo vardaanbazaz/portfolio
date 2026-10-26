@@ -68,6 +68,16 @@ export const caption = (page: Page, id: SectionId) =>
 
 export const marker = (page: Page, label: string) => page.locator('button.marker', { hasText: new RegExp(`^${label}$`) });
 
+/** Opens what a marker opens from the keyboard: focus, then Enter. The Projects markers take no pointer presses (they
+ *  aren't shown; their buildings take them), so this is the way to open those by marker. */
+export async function openMarker(page: Page, label: string) {
+  // Focusable only once its tracker shows it (in view, settled).
+  await expect(marker(page, label)).toBeVisible();
+  await marker(page, label).focus();
+  await expect(marker(page, label)).toBeFocused();
+  await page.keyboard.press('Enter');
+}
+
 /** Waits until the scene is back on the path: no page or panel, markers clickable. */
 export async function expectExploring(page: Page) {
   await expect(page.locator('main.page')).toHaveCount(0);
@@ -132,7 +142,7 @@ export async function waitForWorlds(page: Page) {
 /** The scene's canvas has loaded and drawn, the visitor has passed the entry gate, and the loading screen is gone;
  *  unless `worlds` is false, every world's backdrop has come in too. */
 export async function waitForScene(page: Page, { worlds = true, ...options }: { sound?: boolean; worlds?: boolean } = {}) {
-  await expect(page.locator('.scene canvas')).toBeAttached({ timeout: 20_000 });
+  await expect(page.locator('.scene canvas:not(.backdrop-rain)')).toBeAttached({ timeout: 20_000 });
   await passGate(page, options);
   if (worlds) await waitForWorlds(page);
 }

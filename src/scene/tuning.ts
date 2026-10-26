@@ -289,6 +289,10 @@ export const OBJECT_MARKER_GAP_PX = 10;
 /** A marker never comes closer than this to either side of the view, in px. */
 export const MARKER_SIDE_GUTTER_PX = 16;
 
+/** A marker pinned to a backdrop object never comes higher than this, in px from the top of the view: below the menu
+ *  bar (16 px from the top, its links 44 px tall) with 8 px to spare. */
+export const MARKER_TOP_GUTTER_PX = 68;
+
 /** The area that takes a press on a backdrop object is at least this many px each way: a comfortable touch target. */
 export const OBJECT_HIT_MIN_PX = 44;
 
@@ -313,3 +317,160 @@ export const MOTE_SUN_BIAS = 1.6;
  *  opacity moves between the ends of this range over this many seconds. Barely noticeable. */
 export const SHIMMER_OPACITY: [min: number, max: number] = [0, 0.1];
 export const SHIMMER_PERIOD_SECONDS = 8;
+
+/** Crossing into a world that arrives at dusk (the night city), a staged nightfall instead of the dawn bloom. Each
+ *  stage is an opacity that rises over `rise` and, where it has one, falls over `fall`, both as shares u of the
+ *  crossing, eased (smoothstep):
+ *  - a sunset: the first world's light warms to orange (`warm`), then turns magenta-violet (`magenta`), as a slow
+ *    colour grade laid over it;
+ *  - dusk: a deep blue veil (`veil`) darkens it to a silhouette, and holds while the pictures swap under it;
+ *  - the rain begins (`rain`, its near drops only: the far and close ones join once the crossing is over), over the
+ *    veil;
+ *  - the city's lights switch on in the dark (`lights`: an image of its bright pixels only, over the veil);
+ *  - the veil falls and the full city comes in under its lights, which then fade out over the same lights.
+ *  Neighbouring stages overlap, but at most three full-view layers change at once (a unit test samples this). */
+export interface NightfallStage {
+  rise: readonly [from: number, to: number];
+  fall?: readonly [from: number, to: number];
+}
+export const NIGHTFALL = {
+  warm: { rise: [0, 0.14], fall: [0.14, 0.3] },
+  magenta: { rise: [0.12, 0.28], fall: [0.34, 0.46] },
+  veil: { rise: [0.26, 0.44], fall: [0.66, 0.77] },
+  rain: { rise: [0.55, 0.64] },
+  lights: { rise: [0.58, 0.7], fall: [0.77, 0.81] },
+} as const satisfies Record<string, NightfallStage>;
+
+/** Both worlds hold still at rest until this share of the crossing (the lights have gone into the full city); then
+ *  the city's life, parallax and pan start. */
+export const NIGHTFALL_HELD_UNTIL = 0.82;
+
+/** The sunset grade's two colour layers, each a gradient from the top of the view to the bottom, laid over the first
+ *  world with normal blending, and the opacity each rises to. */
+export const SUNSET_GRADE = {
+  warm: { top: 'rgb(255 170 90)', bottom: 'rgb(255 112 48)', peak: 0.34 },
+  magenta: { top: 'rgb(96 40 132)', bottom: 'rgb(196 64 128)', peak: 0.5 },
+} as const;
+
+/** The veil's colour, and its opacity at the hold (0 at both stops). */
+export const DUSK_VEIL_COLOR = '#0a1430';
+export const DUSK_VEIL_PEAK = 0.96;
+
+/** Half the width of the window, as a share of the crossing, in which the pictures swap under the veil: inside its
+ *  hold, so the swap only ever happens under the full veil. */
+export const DUSK_SWAP_HALF_WIDTH = 0.04;
+
+/** The rain bed fades in with the crossing over this share of it (from the rain's first streaks), as well as
+ *  following the city's weight. */
+export const NIGHTFALL_RAIN_SOUND: [from: number, to: number] = [0.55, 0.78];
+
+/** The night city's sideways pan, where its picture is wider than the view (portrait phones): over this stretch of
+ *  the path (t, from just after the crossing lets the city move, `NIGHTFALL_HELD_UNTIL`, to as far past the Projects
+ *  stop) it brings each building to the middle of the view in turn, left to right, the middle one at the stop. Before
+ *  it the first building is centred, after it the last. */
+export const PROJECTS_PAN_T: [from: number, to: number] = [0.356, 0.424];
+
+/** Rain: single drops drawn on one 2D canvas over the whole city (`environment/rain.ts`). At most `RAIN_MAX_DROPS`
+ *  at the reference view, fewer with a smaller screen area (never more on a larger one), and only this share of them
+ *  at each quality step. The canvas's pixel ratio is capped at `RAIN_PIXEL_RATIO_MAX`. */
+export const RAIN_MAX_DROPS = 400;
+export const RAIN_REFERENCE_VIEW = { width: 1920, height: 1080 } as const;
+export const RAIN_QUALITY_SHARE = { high: 1, low: 0.5 } as const;
+export const RAIN_PIXEL_RATIO_MAX = 1.5;
+
+/** The rain's three depths. Per depth: its share of the drops; its speed range in px per second at a 1080 px tall
+ *  view; how long its streak is in seconds of fall (the motion blur: length follows speed); its streak's width at the
+ *  head in px; its alpha where the light behind it is brightest; and whether it is soft. Far drops are small, slow,
+ *  faint and many; near ones longer, faster and sparse; a few close ones large, soft and quick. */
+export const RAIN_DEPTHS = {
+  far: { share: 0.7, speed: [700, 950], streakSeconds: 0.016, width: 0.9, alpha: 0.5, soft: false },
+  near: { share: 0.27, speed: [1500, 1900], streakSeconds: 0.022, width: 1.3, alpha: 0.6, soft: false },
+  close: { share: 0.03, speed: [2600, 3200], streakSeconds: 0.028, width: 3.2, alpha: 0.36, soft: true },
+} as const;
+
+/** The wind: the rain falls a few degrees off vertical (negative leans it to the left), a base the whole field shares
+ *  that drifts by up to `driftDegrees` either way over two unrelated periods, and each drop up to `dropDegrees` off
+ *  that of its own. */
+export const RAIN_WIND = { baseDegrees: -5, driftDegrees: 3, dropDegrees: 1.5, periodsSeconds: [23, 41] } as const;
+
+/** How a drop catches the city's light behind it (`environment/cityLight.ts`): the light's luma (0 to 255) from the
+ *  dark sky's (no light) to the brightest signs' (full light); the share of its alpha a drop keeps with no light at
+ *  all, nearly invisible; and how far its colour is mixed toward white. */
+export const RAIN_LIGHT_LUMA: [dark: number, bright: number] = [34, 110];
+export const RAIN_DARK_SHARE = 0.18;
+export const RAIN_TINT_WHITE = 0.5;
+
+/** Seconds for the rain's far and close drops to fade in once a crossing is over, and for all of it after the loading
+ *  screen. */
+export const RAIN_FADE_SECONDS = 1.2;
+
+/** Aviation lights: red points blinking slowly on the cranes' tops and the tallest towers' spires. Each blinks once
+ *  per period, lit for the share of it given, at its own phase. Their size in image px, and their colour. */
+export const BEACON_PERIOD_SECONDS = 2.4;
+export const BEACON_LIT_SHARE = 0.18;
+export const BEACON_SIZE_PX = 9;
+export const BEACON_COLOR = '#ff3b2e';
+/** The lights' phases are spread over this share of a period, in their order, so no two blink together. */
+export const BEACON_PHASE_SPREAD = 0.73;
+
+/** Far windows that switch on or off now and then: each holds for its own period (between these, in seconds) and is
+ *  lit for part of it. Warm, and as small as the painted windows around them. */
+export const WINDOW_PERIOD_SECONDS: [min: number, max: number] = [14, 40];
+export const WINDOW_COLOR = '#ffd89a';
+/** A far window's opacity while lit. */
+export const WINDOW_LIT_OPACITY = 0.9;
+export const WINDOW_SEED = 911;
+
+/** Car lights on the avenue far below, right of the violet tower: how many, and the seconds each takes along it. */
+export const TRAFFIC_COUNT = 5;
+export const TRAFFIC_SECONDS: [min: number, max: number] = [11, 19];
+export const TRAFFIC_SEED = 433;
+/** A car's lights: their size in image px, their colour coming toward the view (headlights) and going away (tail
+ *  lights), their opacity, and the share of each run over which they fade in at its start and out at its end. */
+export const CAR_SIZE_PX = { width: 3, height: 2 } as const;
+export const CAR_COLORS = { toward: '#fff4dc', away: '#ff5040' } as const;
+export const CAR_OPACITY = 0.9;
+export const CAR_FADE_SHARE = 0.1;
+
+/** The names on the buildings. How much the blade sign's blown-out cyan is darkened under DataVista's letters (an
+ *  opacity of a dark layer fitted to the sign), measured for contrast. Nothing dark is drawn on the violet face. */
+export const SIGN_BLADE_SHADE = 0.55;
+
+/** The floodlight on KanbanLight's banner: light added over the painted banner, brightest at its top. Without it the
+ *  banner's darkest pixels behind the letters are too dim for dark letters to read. Its alpha at the top and the
+ *  bottom. */
+export const SIGN_FLOOD: [top: number, bottom: number] = [0.45, 0.32];
+
+/** NeuroInsight-AI's letters pulse gently between these opacities over this period; at rest, in the readings for
+ *  contrast, they are at the dimmer end. */
+export const PROJECTS_FACE_PULSE: [min: number, max: number] = [0.9, 1];
+export const PROJECTS_FACE_PULSE_SECONDS = 5;
+
+/** Once every this many seconds a soft wave of light sweeps up the violet face, taking `PROJECTS_FACE_WAVE_SECONDS`
+ *  of it, at most this opacity. */
+export const PROJECTS_FACE_CYCLE_SECONDS = 12;
+export const PROJECTS_FACE_WAVE_SECONDS = 3;
+export const PROJECTS_FACE_WAVE_OPACITY = 0.35;
+/** The wave's band, as a share of the face's height. */
+export const PROJECTS_FACE_WAVE_BAND = 0.3;
+
+/** Unified API Ingester's banner swings on its cables, about the crane's hook, by at most this many degrees each way,
+ *  over this period. */
+export const BANNER_SWING_DEGREES = 0.4;
+export const BANNER_SWING_SECONDS = 7;
+
+/** Hovering or focusing a building, its sign or its marker lights the whole building: its light image (built from the
+ *  painting, brighter than it at every pixel, its lit pixels most, with a soft glow round its silhouette) fades in to
+ *  full over `BUILDING_LIGHT_IN_SECONDS` and out over `BUILDING_LIGHT_OUT_SECONDS`, by opacity alone. Its sign
+ *  brightens with it. */
+export const BUILDING_LIGHT_IN_SECONDS = 0.3;
+export const BUILDING_LIGHT_OUT_SECONDS = 0.5;
+
+/** The rain bed: a recording of rain that follows the night city's weight (and the crossing) as the landing's bed
+ *  follows the landing's. It is the world's main sound, so it plays a little above the landing's bed (-36.2 LUFS):
+ *  through its filters, its file measures -26.3 LUFS, so at this gain at full weight it plays at -34.1 LUFS. */
+export const RAIN_BED_GAIN = 0.41;
+/** Softened as if heard from indoors, as it plays: a high-pass and a low-pass, both 2nd order (Butterworth), wide
+ *  enough that the patter and the taps on the glass come through on laptop speakers. In Hz. */
+export const RAIN_BED_HIGHPASS_HZ = 120;
+export const RAIN_BED_LOWPASS_HZ = 8000;

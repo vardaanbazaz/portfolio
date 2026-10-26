@@ -117,3 +117,13 @@ test.describe('HTML site', () => {
     await expect(page.getByRole('main').getByRole('heading', { level: 2 }).first()).toHaveText('Education');
   });
 });
+
+test('under the Projects caption on a touch screen: "Tap a building"', async ({ page }) => {
+  await page.goto('/');
+  await waitForScene(page);
+  await scrollToSection(page, 'projects');
+  const hint = page.locator('.caption').filter({ hasText: 'Projects' }).locator('.caption-hint');
+  await expect(hint).toHaveText('Tap a building', { useInnerText: true });
+  await expect(hint.locator('[data-pointer="touch"]')).toBeVisible();
+  await expect(hint.locator('[data-pointer="fine"]')).toBeHidden();
+});

@@ -67,6 +67,12 @@ export const SECTION_NOTES: Partial<Record<SectionId, string>> = {
   experience: experience.also,
 };
 
+/** On the scene only, a last caption line for sections whose markers aren't shown (the night city's buildings carry
+ *  their names): how to open one, on a touch screen and with a pointer. */
+export const SECTION_HINTS: Partial<Record<SectionId, { touch: string; pointer: string }>> = {
+  projects: { touch: 'Tap a building', pointer: 'Click a building' },
+};
+
 /** Marker labels, page headings and document titles. */
 export const PAGE_LABELS: Record<PageId, string> = {
   about: 'About',
