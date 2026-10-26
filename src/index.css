@@ -73,11 +73,15 @@ button:hover {
 }
 
 button:focus-visible,
-h1:focus-visible,
-h2:focus-visible,
 .panel a:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* A heading takes focus only when a page or panel opens, so screen readers start there. That focus is the site's,
+   not the visitor's, so it shows no ring (the browser's own included). It can't be reached by Tab. */
+:is(h1, h2)[tabindex='-1']:focus {
+  outline: none;
 }
 
 /* Own stacking context, so nothing in the scene layer can rise above the page and controls. */
@@ -941,64 +945,143 @@ h2:focus-visible,
   line-height: 1.7;
 }
 
-/* On the HTML site the page is an ordinary block; this makes it a stacking context, so the canopy (z-index -1) paints
-   over the page's own background and under its text, as it does inside the scene's fixed page. */
+/* On the HTML site the page is an ordinary block; this makes it a stacking context, so the canopy's layers (z-index
+   -1) paint over the page's own background and under its text, as they do inside the scene's fixed page. Its width
+   is a container, so the local shades can feather out past the reading column without passing the page's sides. */
 .page:has(.canopy) {
   isolation: isolate;
+  container-type: inline-size;
 }
 
-/* Fixed to the view while the page scrolls over it. Lighter at the top, as if the light came from above. */
+/* The scene's page names its scroll, so the painting can dim with it. */
+.page:not(.page-static):has(.canopy) {
+  scroll-timeline: --page-scroll block;
+}
+
+/* The shade, fixed to the view while the page scrolls over it. Lighter at the top, as if the light came from above. */
 .canopy {
   position: fixed;
   inset: 0;
   z-index: -1;
-  overflow: hidden;
   background: linear-gradient(to bottom, var(--canopy-top), var(--canopy-bottom));
   pointer-events: none;
 }
 
-/* Light through the leaves: soft lobes of gold, already soft at the edges, centred on its point. Only transform and
-   opacity change. */
-.canopy-patch {
-  position: absolute;
-  translate: -50% -50%;
-  opacity: var(--patch-rest);
-  will-change: transform, opacity;
-  animation: canopy-dapple ease-in-out infinite;
+/* The painting of the canopy, fixed to the view (a fixed layer never adds to the page's scroll) and never moved by
+   the scroll. */
+.canopy-crown {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: clip;
+  pointer-events: none;
 }
 
-/* Rests, brightens, strays to the far end of its drift, dims, and comes back to rest. */
-@keyframes canopy-dapple {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-    opacity: var(--patch-rest);
+/* The painting dims into the shade by a veil of the shade's own gradient over it, fixed like both: at opacity v it
+   shows the painting exactly as the painting at opacity 1 - v over the shade would, without making the
+   painting a group the compositor must redraw whenever the dim changes. Without scroll-driven animation it holds the
+   painting at its middle strength. */
+.canopy-crown::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, var(--canopy-top), var(--canopy-bottom));
+  opacity: calc(1 - var(--canopy-dim-fallback));
+}
+
+/* With it, the painting dims as the page scrolls, by opacity alone, and holds once dimmed. */
+@supports (animation-timeline: scroll()) {
+  .canopy-crown::after {
+    animation: canopy-dim var(--canopy-dim-easing) both;
+    animation-timeline: --page-scroll;
+    animation-range: 0 var(--canopy-dim-range);
   }
 
-  25% {
-    opacity: var(--patch-bright);
+  .page-static .canopy-crown::after {
+    animation-timeline: scroll(root block);
+  }
+}
+
+@keyframes canopy-dim {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: calc(1 - var(--canopy-dim-min));
+  }
+}
+
+/* The painting at its own aspect, covering the view: its width, or as tall as it and wider, with the cropped part
+   split so the light core stays in view. The glow, spots and motes are placed on it in its own fractions. */
+.canopy-plate {
+  position: relative;
+  width: max(100%, var(--crown-min-height) * var(--crown-aspect));
+  aspect-ratio: var(--crown-aspect);
+  left: var(--crown-focus-x);
+  translate: calc(var(--crown-focus-x) * -1) 0;
+}
+
+/* The image alone fades into the shade through its mask, in its own fractions. The mask sits on the image, not the
+   plate: masking the plate would redraw the mask under every flicker and mote on every frame. The glow, spots and
+   motes all lie above the fade, so they need none. */
+.canopy-image {
+  mask-image: var(--crown-mask);
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* A slow breath of warm light over the core: opacity only. */
+.canopy-glow {
+  position: absolute;
+  left: var(--glow-x);
+  top: var(--glow-y);
+  width: var(--glow-width);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  opacity: var(--glow-rest);
+  animation: canopy-glow var(--glow-duration) ease-in-out infinite;
+}
+
+@keyframes canopy-glow {
+  0%,
+  100% {
+    opacity: var(--glow-rest);
   }
 
   50% {
-    transform: translate3d(var(--patch-dx), var(--patch-dy), 0);
+    opacity: var(--glow-bright);
   }
+}
 
-  75% {
-    opacity: var(--patch-dim);
-  }
+/* Sunlight through moving leaves: a small soft spot in a bright gap, flickering (Canopy.tsx starts it), dim at rest. */
+.canopy-spot {
+  position: absolute;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  opacity: var(--spot-dim);
 }
 
 .canopy-motes {
   position: absolute;
   inset: 0;
+  overflow: hidden;
 }
 
-/* Stepping under the canopy: the grove's gold light over the shade, fading out once as the page opens. */
+/* While the tab is hidden the canopy's motion pauses where it is; the dim follows only the scroll. */
+.canopy-crown[data-motion='stopped'] :is(.canopy-glow, .canopy-mote) {
+  animation-play-state: paused;
+}
+
+/* Stepping under the canopy: the grove's gold light over the page, under its text, fading out once as it opens. */
 .canopy-wash {
-  position: absolute;
+  position: fixed;
   inset: 0;
+  z-index: -1;
   background: var(--canopy-wash);
   opacity: 0;
+  pointer-events: none;
   animation: canopy-wash var(--canopy-wash-duration) ease-out;
 }
 
@@ -1010,6 +1093,29 @@ h2:focus-visible,
   to {
     opacity: 0;
   }
+}
+
+/* A soft local shade behind a block of text over the painting: solid over the block, feathering out beyond it by
+   two crossed masks. Static, no filter; it scrolls with its text. */
+.text-shade {
+  position: relative;
+}
+
+/* It reaches out by the feather above and below, and to the sides by the feather or as far as the page's edge. */
+.text-shade::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--text-shade-feather) * -1) calc(min(var(--text-shade-feather), (100cqi - 100%) / 2) * -1);
+  z-index: -1;
+  background: var(--text-shade);
+  opacity: var(--text-shade-opacity);
+  /* Where it reaches the page's edges it needs no feather at its sides. */
+  --side-feather: clamp(0px, (100cqi - 100% - 2px) * 100, var(--text-shade-feather));
+  mask-image:
+    linear-gradient(to right, transparent, #000 var(--side-feather), #000 calc(100% - var(--side-feather)), transparent),
+    linear-gradient(to bottom, transparent, #000 var(--text-shade-feather), #000 calc(100% - var(--text-shade-feather)), transparent);
+  mask-composite: intersect;
+  pointer-events: none;
 }
 
 .about h1,
@@ -1100,13 +1206,12 @@ h2:focus-visible,
   letter-spacing: 0.04em;
 }
 
-/* With reduced motion nothing moves: the patches hold still at their resting strength, there are no motes, and the
-   page opens straight into the shade. */
+/* With reduced motion nothing moves: the painting dims with the scroll (which is not motion),
+   the glow holds at rest, the spots at dim, there are no motes, and the page opens straight into the shade. */
 @media (prefers-reduced-motion: reduce) {
-  .canopy-patch {
+  .canopy-glow {
     animation: none;
-    transform: none;
-    opacity: var(--patch-rest);
+    opacity: var(--glow-rest);
   }
 
   .canopy-motes,

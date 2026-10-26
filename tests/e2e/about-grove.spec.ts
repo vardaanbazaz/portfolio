@@ -218,6 +218,27 @@ test('hovering the stone or its marker brightens its light', async ({ page }) =>
   await expect(stone(page)).toHaveAttribute('data-hover', '');
 });
 
+test('hovering the stone starts fetching the About page\'s painting, once', async ({ page }) => {
+  const requests: string[] = [];
+  page.on('request', (request) => {
+    if (/\/assets\/about-canopy(-960)?-[\w-]+\.webp$/.test(request.url())) requests.push(request.url());
+  });
+  await page.goto('/');
+  await waitForScene(page);
+  await scrollToSection(page, 'about');
+  await page.waitForLoadState('networkidle');
+  expect(requests).toEqual([]);
+  const masks = await readMasks(page);
+  const at = await viewPoint(page, masks, Math.round(masks.outline.width / 2), Math.round(masks.outline.height / 2));
+  await page.mouse.move(at.x, at.y);
+  await expect(stone(page)).toHaveAttribute('data-hover', '');
+  await expect.poll(() => requests.length).toBe(1);
+  await page.mouse.move(5, 5);
+  await page.mouse.move(at.x, at.y);
+  await page.waitForLoadState('networkidle');
+  expect(requests).toHaveLength(1);
+});
+
 test("the glow shows only in the spiral's mask: on the stone, on the grove's gold pixels, and nowhere else", async ({ page }) => {
   await page.goto('/');
   await waitForScene(page);

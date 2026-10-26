@@ -3,11 +3,14 @@ import { pages } from './pages/registry';
 import { panels } from './panels/registry';
 import { prefetch, whenIdle } from './ui/chunk';
 
-/** The chunk a marker opens: its panel's for a short item, otherwise its page's. */
-const chunkFor = (page: PageId, item: ItemId | null | undefined) => (opensPanel(item) ? panels[item] : pages[page]);
+/** A page's module may export `warm`, which starts fetching what the page shows that its code doesn't hold (the About
+ *  page's painting). It runs only when the visitor heads for the page, never from the background preload. */
+const warmPage = (module: unknown) => (module as { warm?: () => void }).warm?.();
 
-/** Starts fetching what a marker opens: on hover, focus or press, and as its fly-in starts. */
-export const prefetchTarget = (page: PageId, item?: ItemId | null) => prefetch(chunkFor(page, item).load);
+/** Starts fetching what a marker opens (its panel's chunk for a short item, otherwise its page's): on hover, focus or
+ *  press, and as its fly-in starts. */
+export const prefetchTarget = (page: PageId, item?: ItemId | null) =>
+  opensPanel(item) ? prefetch(panels[item].load) : prefetch(() => pages[page].load().then(warmPage));
 
 /** Fetches the chunks one at a time, so the background never crowds out a chunk the visitor is waiting for.
  *  `onLoaded` runs after each one that arrives. A failure is skipped; that chunk is fetched again when it opens. */

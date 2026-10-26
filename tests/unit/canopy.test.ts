@@ -6,17 +6,28 @@ import {
   ABOUT_HEADING_COLOR,
   ABOUT_SOURCE_COLOR,
   ABOUT_TEXT_COLOR,
-  CANOPY_LIGHT_RGB,
+  CANOPY_FADE,
   CANOPY_MOTE_COUNT,
+  CANOPY_DIM_DISTANCE,
+  CANOPY_DIM_FALLBACK,
+  CANOPY_DIM_MIN,
   CANOPY_MOTE_OPACITY,
   CANOPY_SHADE_BOTTOM,
   CANOPY_SHADE_TOP,
+  CANOPY_SPOT_BRIGHTEST,
+  CANOPY_SPOT_FLICKER,
+  CANOPY_SPOT_OPACITY,
+  CANOPY_SPOT_PERIOD_SECONDS,
+  CANOPY_SPOTS,
   CANOPY_WASH_SECONDS,
-  PATCH_OPACITY,
-  PATCHES,
+  GLOW_OPACITY,
+  GLOW_PERIOD_SECONDS,
+  TEXT_SHADE_OPACITY,
   canopyMotes,
+  canopySpots,
+  fadeMask,
+  spotKeyframes,
 } from '../../src/pages/canopy';
-import { MOTE_COLOR } from '../../src/scene/tuning';
 import { ABOUT_TEXT_RUNS } from '../fixtures/aboutText';
 
 type Rgb = readonly [number, number, number];
@@ -40,17 +51,6 @@ const contrast = (a: Rgb, b: Rgb) => {
   return (hi + 0.05) / (lo + 0.05);
 };
 
-/** `top` painted over `under` at `alpha`, as the browser composites: in sRGB. */
-const over = (under: Rgb, top: Rgb, alpha: number): Rgb => under.map((v, i) => top[i] * alpha + v * (1 - alpha)) as unknown as Rgb;
-
-/** The lightest the background can be: its top colour, every patch at its brightest and the brightest mote, all over
- *  one point. They never all meet, so this bounds what the browser can show. */
-const lightest = (): Rgb => {
-  let color = hex(CANOPY_SHADE_TOP);
-  for (const patch of PATCHES) color = over(color, CANOPY_LIGHT_RGB, patch.strength * PATCH_OPACITY.bright);
-  return over(color, hex(MOTE_COLOR), CANOPY_MOTE_OPACITY[1]);
-};
-
 /** The page's text, run by run: what lies between tags, entities decoded. */
 const textRuns = (html: string) =>
   html
@@ -66,24 +66,28 @@ describe('About page text', () => {
   });
 
   it('adds only decoration: hidden from assistive technology, with no text of its own', () => {
-    expect(html).toMatch(/<div class="canopy" aria-hidden="true">/);
+    expect(html).toMatch(/<div class="canopy" aria-hidden="true"><\/div>/);
+    expect(html).toMatch(/<div class="canopy-crown" aria-hidden="true">/);
+    expect(html).toMatch(/<img class="canopy-image"[^>]* alt=""/);
     expect(html.match(/<div class="spiral-divider" aria-hidden="true">/g)).toHaveLength(4);
     expect(html).not.toMatch(/<title|<text|<hr/);
   });
 
   it('frames the verse with a divider above and below', () => {
-    expect(html).toMatch(/<div class="spiral-divider"[^>]*>.*?<\/div><figure class="verse about-verse">.*?<\/figure><div class="spiral-divider"/);
+    expect(html).toMatch(/<div class="spiral-divider"[^>]*>.*?<\/div><figure class="verse about-verse text-shade"[^>]*>.*?<\/figure><div class="spiral-divider"/);
   });
 });
 
 describe('About canopy contrast', () => {
-  const background = lightest();
+  // Over the painting, contrast is measured in the browser, line by line (tests/e2e/about-canopy.spec.ts). Below it,
+  // the page reads on the plain shade, lightest at its top.
+  const background = hex(CANOPY_SHADE_TOP);
 
-  it('keeps body text at 7:1 or more against the lightest the background can be', () => {
+  it('keeps body text at 7:1 or more on the plain shade', () => {
     expect(contrast(hex(ABOUT_TEXT_COLOR), background)).toBeGreaterThanOrEqual(7);
   });
 
-  it('keeps headings and the source line at 4.5:1 or more', () => {
+  it('keeps headings and the source line at 4.5:1 or more on the plain shade', () => {
     expect(contrast(hex(ABOUT_HEADING_COLOR), background)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(hex(ABOUT_SOURCE_COLOR), background)).toBeGreaterThanOrEqual(4.5);
   });
@@ -94,21 +98,80 @@ describe('About canopy contrast', () => {
   });
 });
 
-describe('About canopy motion', () => {
-  it('drifts each light patch over one cycle of 20 to 30 s, resting between its dimmest and brightest', () => {
-    expect(PATCHES.length).toBeGreaterThan(0);
-    for (const patch of PATCHES) {
-      expect(patch.period).toBeGreaterThanOrEqual(20);
-      expect(patch.period).toBeLessThanOrEqual(30);
-    }
-    expect(PATCH_OPACITY.dim).toBeLessThan(PATCH_OPACITY.rest);
-    expect(PATCH_OPACITY.rest).toBeLessThan(PATCH_OPACITY.bright);
+describe('About canopy painting', () => {
+  it('fades out through its lower part, from opaque to clear, never brightening on the way', () => {
+    const alphas = [...fadeMask().matchAll(/rgb\(0 0 0 \/ ([\d.]+)\)/g)].map((m) => Number(m[1]));
+    expect(alphas[0]).toBe(1);
+    expect(alphas.at(-1)).toBe(0);
+    for (let i = 1; i < alphas.length; i++) expect(alphas[i]).toBeLessThanOrEqual(alphas[i - 1]);
+    expect(CANOPY_FADE[0]).toBeLessThanOrEqual(2 / 3);
+    expect(CANOPY_FADE[1]).toBe(1);
   });
 
-  it('has about a dozen motes, the same on every load', () => {
+  it('dims to a quarter over 1.2 view heights of scroll, and holds halfway without scroll-driven animation', () => {
+    expect(CANOPY_DIM_MIN).toBe(0.25);
+    expect(CANOPY_DIM_DISTANCE).toBe(1.2);
+    expect(CANOPY_DIM_FALLBACK).toBeCloseTo((1 + CANOPY_DIM_MIN) / 2, 10);
+  });
+});
+
+describe('About canopy light', () => {
+  it('has 5 to 7 spots, each inside the painting and away from its edges, the same on every load', () => {
+    expect(CANOPY_SPOTS.length).toBeGreaterThanOrEqual(5);
+    expect(CANOPY_SPOTS.length).toBeLessThanOrEqual(7);
+    expect(canopySpots()).toEqual(canopySpots());
+    for (const spot of CANOPY_SPOTS) {
+      for (const v of [spot.x, spot.y]) {
+        expect(v - spot.size / 2).toBeGreaterThan(0);
+        expect(v + spot.size / 2).toBeLessThan(1);
+      }
+    }
+  });
+
+  it('flickers each spot on its own period between 2 and 5 s, no two alike', () => {
+    const periods = canopySpots().map((spot) => spot.period);
+    for (const period of periods) {
+      expect(period).toBeGreaterThanOrEqual(CANOPY_SPOT_PERIOD_SECONDS[0]);
+      expect(period).toBeLessThanOrEqual(CANOPY_SPOT_PERIOD_SECONDS[1]);
+    }
+    expect(CANOPY_SPOT_PERIOD_SECONDS).toEqual([2, 5]);
+    expect(new Set(periods.map((p) => p.toFixed(2))).size).toBe(periods.length);
+  });
+
+  it('flickers between dim and bright, brightest at its stated offset', () => {
+    const frames = spotKeyframes();
+    const opacities = frames.map((frame) => frame.opacity as number);
+    expect(Math.min(...opacities)).toBeCloseTo(CANOPY_SPOT_OPACITY.dim, 10);
+    expect(Math.max(...opacities)).toBeCloseTo(CANOPY_SPOT_OPACITY.bright, 10);
+    expect(frames.find((frame) => frame.opacity === Math.max(...opacities))!.offset).toBe(CANOPY_SPOT_BRIGHTEST);
+    expect(CANOPY_SPOT_FLICKER[0]).toEqual([0, 0]);
+    expect(CANOPY_SPOT_FLICKER.at(-1)).toEqual([1, 0]);
+  });
+});
+
+describe('About text shades', () => {
+  it('are lighter further down the page, never heavier than they were', () => {
+    // The heading is large text, held to 4.5:1 rather than 7:1, so it may sit on a lighter shade than the verse.
+    const { heading, verse, education, location, links } = TEXT_SHADE_OPACITY;
+    expect(heading).toBeLessThanOrEqual(0.8);
+    expect(verse).toBeLessThanOrEqual(0.8);
+    expect(education).toBeLessThanOrEqual(verse);
+    expect(location).toBeLessThanOrEqual(education);
+    expect(links).toBeLessThanOrEqual(location);
+  });
+});
+
+describe('About canopy motion', () => {
+  it('breathes the glow slowly, over about 10 s, resting below its brightest', () => {
+    expect(GLOW_PERIOD_SECONDS).toBe(10);
+    expect(GLOW_OPACITY.rest).toBeLessThan(GLOW_OPACITY.bright);
+  });
+
+  it('has a dozen clearly visible motes, the same on every load', () => {
     expect(CANOPY_MOTE_COUNT).toBe(12);
     expect(canopyMotes()).toHaveLength(CANOPY_MOTE_COUNT);
     expect(canopyMotes()).toEqual(canopyMotes());
+    expect(CANOPY_MOTE_OPACITY).toEqual([0.25, 0.5]);
     for (const mote of canopyMotes()) {
       expect(mote.opacity).toBeGreaterThanOrEqual(CANOPY_MOTE_OPACITY[0]);
       expect(mote.opacity).toBeLessThanOrEqual(CANOPY_MOTE_OPACITY[1]);
